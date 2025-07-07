@@ -1,0 +1,14 @@
+# venv and installed tools
+bin/
+config/
+data/
+logs/
+venv/
+
+# compiled C objects
+*.o
+*.a
+
+# pycache
+__pycache__/
+*.pyc
