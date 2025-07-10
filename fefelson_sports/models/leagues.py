@@ -75,14 +75,17 @@ class League(Processable, Updateable):
                 # from pprint import pprint 
                 # pprint(boxscore)
                 # raise 
+                
+                if boxscore:
                     
-                for player in [self.player.process(player["player_id"]) for player in boxscore["yahooBox"]["players"]]:
-                    self.player.save_to_db(player)
-                            
-                self.boxscore.save_to_db(boxscore)
+                    for player in [self.player.process(player["player_id"]) for player in boxscore["yahooBox"]["players"]]:
+                        if player is not None:
+                            self.player.save_to_db(player)
+
+                    self.boxscore.save_to_db(boxscore)
             
-            # elif game["statusType"] == "pregame":
-            #     self.matchup.process(game)
+            elif game["yahoo"]["statusType"] == "pregame":
+                self.matchup.process(game)
                     
 
     def update(self):

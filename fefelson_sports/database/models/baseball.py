@@ -170,6 +170,49 @@ class BaseballTeamStat(Base):
     game = relationship("Game")
     opponent = relationship("Team", foreign_keys=[opp_id])
 
+##########################################################################
+##########################################################################
+
+
+class BattingStat(Base):
+    __tablename__ = 'batting_stats'
+    batter_id = Column(String, ForeignKey('players.player_id', ondelete='CASCADE'), primary_key=True)
+    game_id = Column(String, ForeignKey('games.game_id', ondelete='CASCADE'), primary_key=True)
+    team_id = Column(String, ForeignKey('teams.team_id', ondelete='CASCADE'), nullable=False)
+    opp_id = Column(String, ForeignKey('teams.team_id', ondelete='CASCADE'), nullable=False)
+    r = Column(Integer, nullable=False)
+    sb = Column(Integer, nullable=False)
+    rbi = Column(Integer, nullable=False)
+    
+    
+    team = relationship("Team", foreign_keys=[team_id])
+    game = relationship("Game")
+    opponent = relationship("Team", foreign_keys=[opp_id])
+
+##########################################################################
+##########################################################################
+
+
+class PitchingStat(Base):
+    __tablename__ = 'pitching_stats'
+    pitcher_id = Column(String, ForeignKey('players.player_id', ondelete='CASCADE'), primary_key=True)
+    game_id = Column(String, ForeignKey('games.game_id', ondelete='CASCADE'), primary_key=True)
+    team_id = Column(String, ForeignKey('teams.team_id', ondelete='CASCADE'), nullable=False)
+    opp_id = Column(String, ForeignKey('teams.team_id', ondelete='CASCADE'), nullable=False)
+    full_ip = Column(Integer, nullable=False)
+    partial_ip = Column(Integer, nullable=False)
+    ra  = Column(Integer, nullable=False)
+    er = Column(Integer, nullable=False)
+    w = Column(Integer, nullable=False)
+    l  = Column(Integer, nullable=False)
+    sv = Column(Integer, nullable=False)
+    blsv = Column(Integer, nullable=False)
+
+    
+    team = relationship("Team", foreign_keys=[team_id])
+    game = relationship("Game")
+    opponent = relationship("Team", foreign_keys=[opp_id])
+
 
 ##########################################################################
 ##########################################################################

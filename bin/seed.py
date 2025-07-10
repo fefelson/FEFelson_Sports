@@ -4,11 +4,11 @@ from sqlalchemy.exc import IntegrityError
 import os
 import sys
 
-from sports_scraper.scraper.capabilities.fileable import PickleAgent, JSONAgent
-from sports_db.database.models.database import engine, Base
-from sports_db.database.models import Sport, League, Team, Player, AtBatType, PitchType, PitchResultType, ContactType, SwingResult
+from fefelson_sports.capabilities.fileable import PickleAgent, JSONAgent
+from fefelson_sports.database.models.database import engine, Base
+from fefelson_sports.database.models import Sport, League, Team, Player, AtBatType, PitchType, PitchResultType, ContactType, SwingResult
 
-from sports_scraper.scraper.providers.yahoo.normalizers.yahoo_mlb_normalizer import YahooMLBNormalizer as normalAgent
+from fefelson_sports.providers.yahoo.normalizers.yahoo_mlb_normalizer import YahooMLBNormalizer as normalAgent
  
 def seed_data():
     # Create tables if they don???t exist
@@ -42,14 +42,14 @@ def seed_data():
 
 
              # Seed MLB Teams
-            mlb_teams = PickleAgent.read(os.path.join(os.environ["HOME"], "FEFelson/leagues/mlb/mlb_teams.pkl")) 
+            mlb_teams = PickleAgent.read(os.path.join(os.environ["HOME"], "FEFelson/FEFelson_Sports/leagues/mlb/mlb_teams.pkl")) 
             for data in mlb_teams:
                 if not session.query(Team).filter_by(team_id=data["team_id"]).first():
                     session.add(Team(**data))
 
 
             # Seed MLB Players
-            mlb_players = PickleAgent.read(os.path.join(os.environ["HOME"], "FEFelson/leagues/mlb/mlb_players.pkl")) 
+            mlb_players = PickleAgent.read(os.path.join(os.environ["HOME"], "FEFelson/FEFelson_Sports/leagues/mlb/mlb_players.pkl")) 
             for player in [normalAgent("MLB").normalize_player(player) for player in mlb_players]:
 
                 if not session.query(Player).filter_by(player_id=player["player_id"]).first():

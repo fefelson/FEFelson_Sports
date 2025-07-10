@@ -40,7 +40,11 @@ class Boxscore(Databaseable, Downloadable, Fileable, Normalizable, Processable):
 
     def download(self, game: dict) -> Dict[str, Any]:
         downloadAgent = get_download_agent(self.leagueId, game["provider"])
-        return downloadAgent.fetch_boxscore(game)
+        try:
+            webData = downloadAgent.fetch_boxscore(game)
+        except KeyError:
+            webData = None
+        return webData
 
 
     def load_from_db(self):
@@ -72,6 +76,7 @@ class Boxscore(Databaseable, Downloadable, Fileable, Normalizable, Processable):
             yahooBox = webData["yahoo"]
             espnBox = webData["espn"]
         else:
+            yahooBox = None
             if game["yahoo"]["url"]:
                 yahooBox = self.download(game["yahoo"])
                 espnBox = None
@@ -79,8 +84,11 @@ class Boxscore(Databaseable, Downloadable, Fileable, Normalizable, Processable):
                     espnBox = self.download(game["espn"])
                 
                 self.write_file({"espn": espnBox, "yahoo": yahooBox})
-                        
-        return {"yahooBox": self.normalize(yahooBox), "espnBox": self.normalize(espnBox)}
+
+        if yahooBox is None:
+            return None
+        else:
+            return {"yahooBox": self.normalize(yahooBox), "espnBox": self.normalize(espnBox)}
 
 
     def save_to_db(self, boxscore: dict):

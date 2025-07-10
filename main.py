@@ -1,14 +1,14 @@
 import wx
-from .gui.views.felson_frame import FelsonFrame
-from .gui.controllers.matchup_controller import MatchupController
-from .gui.views.splash_screen import SplashScreen
+from fefelson_sports.gui.views.felson_frame import FelsonFrame
+from fefelson_sports.gui.controllers.matchup_controller import MatchupController
+from fefelson_sports.gui.views.splash_screen import SplashScreen
 
-from .sports.basketball.leagues import NBA, NCAAB
+from fefelson_sports.sports.basketball.leagues import NBA, NCAAB, MLB
 
 class MainApp(wx.App):
     def OnInit(self):
 
-        leagueList = (NBA(), NCAAB())
+        leagueList = (MLB(),)
 
         leagues = {league._leagueId: league for league in leagueList if league.is_active()}
         

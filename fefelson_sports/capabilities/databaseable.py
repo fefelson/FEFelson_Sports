@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
 from difflib import get_close_matches
+from sqlalchemy.exc import IntegrityError
 from typing import Any, Optional
 from itertools import chain
 
-from ..database.models.baseball import BattingOrder, Bullpen, BaseballTeamStat, Pitch, AtBat
+from ..database.models.baseball import BattingOrder, Bullpen, BaseballTeamStat, Pitch, AtBat, BattingStat, PitchingStat
 from ..database.models.core import Game, Period, Player, ProviderMapping, Team, Stadium
 from ..database.models.database import engine, get_db_session
 from ..database.models.gaming import GameLine, OverUnder
@@ -126,9 +127,12 @@ class MLBAlchemy(SQLAlchemyDatabaseAgent):
         espnBox = boxscore["espnBox"]
 
         with get_db_session() as session:
+            if yahooBox is None:
+                return None 
 
-            if (yahooBox["stadium"].get("name") is None or yahooBox["stadium"]["name"] == "") and (espnBox["stadium"].get("name") is not None and espnBox["stadium"]["name"] != ""):
-                yahooBox["stadium"]["name"] = espnBox["stadium"]["name"]
+            if espnBox:
+                if (yahooBox["stadium"].get("name") is None or yahooBox["stadium"]["name"] == "") and (espnBox["stadium"].get("name") is not None and espnBox["stadium"]["name"] != ""):
+                    yahooBox["stadium"]["name"] = espnBox["stadium"]["name"]
             
             if not session.query(Stadium).filter_by(stadium_id=yahooBox["stadium"]["stadium_id"]).first():
                 session.add(Stadium(**yahooBox["stadium"]))
@@ -168,78 +172,122 @@ class MLBAlchemy(SQLAlchemyDatabaseAgent):
                         if not existing:
                             session.add(ProviderMapping(**mappings))
 
-            if yahooBox.get("gameLines"):
-                for gl in yahooBox["gameLines"]:
-                    # Insert Game with check
-                    existing = session.query(GameLine).filter(
-                                GameLine.game_id == gl["game_id"],
-                                GameLine.team_id == gl["team_id"]
+                if yahooBox.get("gameLines"):
+                    for gl in yahooBox["gameLines"]:
+                        # Insert Game with check
+                        existing = session.query(GameLine).filter(
+                                    GameLine.game_id == gl["game_id"],
+                                    GameLine.team_id == gl["team_id"]
+                                ).first()
+                        if not existing:
+                            session.add(GameLine(**gl))
+
+                if yahooBox.get("overUnder"):
+                    if not session.query(OverUnder).filter_by(game_id=yahooBox["overUnder"]["game_id"]).first():
+                        session.add(OverUnder(**yahooBox["overUnder"]))
+
+
+                periods = []
+                for p in yahooBox["periods"]:
+                    try:
+                        int(p["pts"])
+                        periods.append(p)
+                    except ValueError:
+                        pass
+                
+                for p in periods:
+                    # Insert Period with check
+                    existing = session.query(Period).filter(
+                                Period.game_id == p["game_id"],
+                                Period.team_id == p["team_id"],
+                                Period.period == p["period"]
                             ).first()
                     if not existing:
-                        session.add(GameLine(**gl))
+                        session.add(Period(**p))
 
-            if yahooBox.get("overUnder"):
-                if not session.query(OverUnder).filter_by(game_id=yahooBox["overUnder"]["game_id"]).first():
-                    session.add(OverUnder(**yahooBox["overUnder"]))
+                game = yahooBox["game"]
 
+                teamStats = []
+                if espnBox:
+                    for espn in espnBox["teamStats"]:
+                        teamStats.append( {"game_id": game["game_id"], 
+                                "team_id": espn["team_id"],
+                                "opp_id": game["home_id"] if espn["team_id"] == game["away_id"] else game["away_id"],
+                                "runs": espn["batting"]["r"],
+                                "hits": espn["batting"]["h"],
+                                "errors": espn["errors"]
+                                })
+                for stats in teamStats:
+                    existing = session.query(BaseballTeamStat).filter(
+                                BaseballTeamStat.game_id == stats["game_id"],
+                                BaseballTeamStat.team_id == stats["team_id"]
+                            ).first()
+                    if not existing:
+                        session.add(BaseballTeamStat(**stats))
 
-            periods = []
-            for p in yahooBox["periods"]:
+                at_bats = yahooBox["misc"]["at_bats"]
+
+                # Insert Game with check
+                for ab in at_bats:
+                    batter = session.query(Player).filter(
+                                Player.player_id == ab["batter_id"]
+                            ).first()
+                    pitcher = session.query(Player).filter(
+                                Player.player_id == ab["pitcher_id"]
+                            ).first()
+                    if batter and pitcher:
+                        session.add(AtBat(**ab))  
+
+                pitches = []
                 try:
-                    int(p["pts"])
-                    periods.append(p)
-                except ValueError:
-                    pass
+                    playerMappings = map_players(yahooBox, espnBox)
+                    yahoo = yahooBox["game"]
+                    espn = espnBox["misc"]["pitches"]
+                    for pitch in espn:
+                        pitch["game_id"] = yahoo["game_id"]
+                        pitch["batter_id"] = playerMappings[pitch["batter_id"].lower()]
+                        pitch["pitcher_id"] = playerMappings[pitch["pitcher_id"].lower()]
+                        pitches.append(pitch)
+                except (TypeError, KeyError):
+                    pass 
             
-            for p in periods:
-                # Insert Period with check
-                existing = session.query(Period).filter(
-                            Period.game_id == p["game_id"],
-                            Period.team_id == p["team_id"],
-                            Period.period == p["period"]
-                        ).first()
-                if not existing:
-                    session.add(Period(**p))
+                for p in pitches:
+                    batter = session.query(Player).filter(
+                                Player.player_id == p["batter_id"]
+                            ).first()
+                    pitcher = session.query(Player).filter(
+                                Player.player_id == p["pitcher_id"]
+                            ).first()
+                    if batter and pitcher:
+                        session.add(Pitch(**p))
 
-            game = yahooBox["game"]
+                batterStats = yahooBox["misc"]["batting_stats"]
+                pitcherStats = yahooBox["misc"]["pitching_stats"]
 
-            teamStats = []
-            if espnBox:
-                for espn in espnBox["teamStats"]:
-                    teamStats.append( {"game_id": game["game_id"], 
-                            "team_id": espn["team_id"],
-                            "opp_id": game["home_id"] if espn["team_id"] == game["away_id"] else game["away_id"],
-                            "runs": espn["batting"]["r"],
-                            "hits": espn["batting"]["h"],
-                            "errors": espn["errors"]
-                            })
-            for stats in teamStats:
-                existing = session.query(BaseballTeamStat).filter(
-                            BaseballTeamStat.game_id == stats["game_id"],
-                            BaseballTeamStat.team_id == stats["team_id"]
-                        ).first()
-                if not existing:
-                    session.add(BaseballTeamStat(**stats))
 
-            at_bats = yahooBox["misc"]["at_bats"]
+                for bs in batterStats:
+                    batter = session.query(Player).filter(
+                                Player.player_id == bs["batter_id"]
+                            ).first()
+                    existing = session.query(BattingStat).filter(
+                                BattingStat.game_id == bs["game_id"],
+                                BattingStat.batter_id == bs["batter_id"]
+                            ).first()
+                    if batter and not existing:
+                        session.add(BattingStat(**bs))
 
-            # Insert Game with check
-            for ab in at_bats:
-                session.add(AtBat(**ab))  
 
-            pitches = []
-            try:
-                playerMappings = map_players(yahooBox, espnBox)
-                yahoo = yahooBox["game"]
-                espn = espnBox["misc"]["pitches"]
-                for pitch in espn:
-                    pitch["game_id"] = yahoo["game_id"]
-                    pitch["batter_id"] = playerMappings[pitch["batter_id"].lower()]
-                    pitch["pitcher_id"] = playerMappings[pitch["pitcher_id"].lower()]
-                    pitches.append(pitch)
-            except (TypeError, KeyError):
-                pass 
-        
-            for p in pitches:
-                session.add(Pitch(**p))      
+                for ps in pitcherStats:
+                    pitcher = session.query(Player).filter(
+                                Player.player_id == ps["pitcher_id"]
+                            ).first()
+                    existing = session.query(PitchingStat).filter(
+                                PitchingStat.game_id == ps["game_id"],
+                                PitchingStat.pitcher_id == ps["pitcher_id"]
+                            ).first()
+                    if pitcher and not existing:
+                        session.add(PitchingStat(**ps))
+
+
+
                 

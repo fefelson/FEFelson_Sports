@@ -210,26 +210,21 @@ class YahooMLBNormalizer(BaseballNormalizer, YahooNormalizer):
         playerStats=[]
         for playerId, teamId, oppId in self._set_player_list(webData, "B"):
             try:
-                raw_player_data = webData["StatsStore"]["playerStats"][playerId]['mlb.stat_variation.2']
+                raw_player_data = webData["statsData"]["playerStats"][playerId]['mlb.stat_variation.2']
             except (KeyError, AttributeError):
                 raw_player_data = None
 
             if raw_player_data :
                 try:
-                    newPlayerStats = self._BatterStats(
-                        player_id=playerId,
-                        game_id=gameId,
-                        team_id=teamId,
-                        opp_id=oppId,
-                        ab = raw_player_data["mlb.stat_type.2"],
-                        bb = raw_player_data["mlb.stat_type.14"],
-                        r = raw_player_data["mlb.stat_type.3"],
-                        h = raw_player_data["mlb.stat_type.4"],
-                        sb = raw_player_data["mlb.stat_type.12"],
-                        rbi = raw_player_data["mlb.stat_type.8"],
-                        so = raw_player_data["mlb.stat_type.17"]   
-                    )                 
-                    playerStats.append(newPlayerStats)
+                    playerStats.append({
+                        "batter_id": playerId,
+                        "game_id": gameId,
+                        "team_id": teamId,
+                        "opp_id": oppId,
+                        "r": raw_player_data["mlb.stat_type.3"],
+                        "sb": raw_player_data["mlb.stat_type.12"],
+                        "rbi": raw_player_data["mlb.stat_type.8"]
+                    })                 
                 except (IndexError, KeyError):
                     pass
         return playerStats
@@ -246,31 +241,26 @@ class YahooMLBNormalizer(BaseballNormalizer, YahooNormalizer):
         playerStats = []
         for playerId, teamId, oppId in self._set_player_list(webData, "P"):
             try:
-                raw_player_data = webData["StatsStore"]["playerStats"][playerId]['mlb.stat_variation.2']
+                raw_player_data = webData["statsData"]["playerStats"][playerId]['mlb.stat_variation.2']
             except (KeyError, AttributeError):
                 raw_player_data = None
 
             if raw_player_data :
                 try:
-                    newPlayerStats = self._PitcherStats(
-                        player_id=playerId,
-                        game_id=gameId,
-                        team_id=teamId,
-                        opp_id=oppId,
-                        full_ip = raw_player_data["mlb.stat_type.139"].split(".")[0],
-                        partial_ip = raw_player_data["mlb.stat_type.139"].split(".")[1],
-                        bba = raw_player_data["mlb.stat_type.118"],
-                        ha = raw_player_data["mlb.stat_type.111"],
-                        ra = raw_player_data["mlb.stat_type.113"],
-                        er = raw_player_data["mlb.stat_type.114"],
-                        k = raw_player_data["mlb.stat_type.121"],
-                        hra = raw_player_data["mlb.stat_type.115"],
-                        w = raw_player_data["mlb.stat_type.101"],
-                        l = raw_player_data["mlb.stat_type.102"],
-                        sv = raw_player_data["mlb.stat_type.107"],
-                        blsv = raw_player_data["mlb.stat_type.147"] 
-                    )                 
-                    playerStats.append(newPlayerStats)
+                    playerStats.append({
+                        "pitcher_id": playerId,
+                        "game_id": gameId,
+                        "team_id": teamId,
+                        "opp_id": oppId,
+                        "full_ip": raw_player_data["mlb.stat_type.139"].split(".")[0],
+                        "partial_ip": raw_player_data["mlb.stat_type.139"].split(".")[1],
+                        "ra": raw_player_data["mlb.stat_type.113"],
+                        "er": raw_player_data["mlb.stat_type.114"],
+                        "w": raw_player_data["mlb.stat_type.101"],
+                        "l": raw_player_data["mlb.stat_type.102"],
+                        "sv": raw_player_data["mlb.stat_type.107"],
+                        "blsv": raw_player_data["mlb.stat_type.147"] 
+                    })                 
                 except (IndexError, KeyError):
                     pass
         return playerStats
@@ -344,7 +334,9 @@ class YahooMLBNormalizer(BaseballNormalizer, YahooNormalizer):
 
     def _set_misc(self, webData):
         misc = {"at_bats": self._set_atbats(webData),
-                "pitches": self._set_pitches(webData)}
+                "pitches": self._set_pitches(webData),
+                "batting_stats": self._set_batter_stats(webData),
+                "pitching_stats": self._set_pitcher_stats(webData)}
         return misc
 
 

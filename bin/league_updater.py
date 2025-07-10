@@ -29,5 +29,5 @@ if __name__ == "__main__":
 
     timeNow = datetime.now().astimezone(est)
 
-    if timeNow.hour > 4 and timeNow.hour < 22:
+    if timeNow.hour > 3 and timeNow.hour < 22:
         main(league_id)

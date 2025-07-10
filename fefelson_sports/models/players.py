@@ -49,6 +49,8 @@ class Player(Databaseable, Downloadable, Fileable, Normalizable, Processable):
 
 
     def normalize(self, webData: dict) -> Dict[str, Any]:
+        if webData is None:
+            return None
         normalAgent = get_normal_agent(self.leagueId, webData["provider"])
         return normalAgent.normalize_player(webData)
 
@@ -60,8 +62,11 @@ class Player(Databaseable, Downloadable, Fileable, Normalizable, Processable):
         if self.file_exists():
             webData = self.read_file()
         else:
-            webData = self.download(playerId)
-            self.write_file(webData)
+            try:
+                webData = self.download(playerId)
+                self.write_file(webData)
+            except KeyError:
+                webData = None
         player = self.normalize(webData)
         return player
     
@@ -74,10 +79,6 @@ class Player(Databaseable, Downloadable, Fileable, Normalizable, Processable):
             # Catch unexpected errors
             self.logger.error(f"Failed to save player to db: Unexpected error - {type(e).__name__}: {str(e)}")
             # raise  # Optional: re-raise for debugging
-        else:
-            # Runs if no exception occurs
-            self.logger.info("Player saved to db successfully")
-        # Optional: Add a finally block if you need cleanup
         
 
 

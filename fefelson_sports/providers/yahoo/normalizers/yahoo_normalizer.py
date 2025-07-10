@@ -78,10 +78,12 @@ class YahooNormalizer(NormalAgent):
             "statusType": gameData["status_type"].lower(),
             "gameType": gameData["game_type"].split(".")[-1].lower() if gameData["game_type"] else None,
             "odds": odds,
+            "byline": gameData["byline"],
             "lineups": gameData.get("lineups", None),
-            "players": gameData["playersByTeam"] if gameData.get("playersByTeam") else None,
-            "teams": [webData["TeamsStore"]["teams"][teamId] for teamId in [gameData["{}_team_id".format(a_h)] for a_h in ("away", "home")]],
-            "injuries": [player["injury"] for player in webData["PlayersStore"]["players"].values() if player.get("injury", None)],
+            "players": gameData["playersByTeam"],
+            "teams": [team for team in self._set_teams(webData["teamData"]["teams"])
+                   if team["team_id"] in (gameData["away_team_id"], gameData["home_team_id"])],
+            "injuries": [player["injury"] for player in webData["playerData"]["players"].values() if player.get("injury", None)],
             "stadiumId": gameData.get("stadium_id", None),
             "isNuetral": bool(gameData.get("tournament")),
         }
