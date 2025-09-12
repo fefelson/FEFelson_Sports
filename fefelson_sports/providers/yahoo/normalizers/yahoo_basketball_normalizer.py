@@ -1,25 +1,25 @@
-import math
+from math import sqrt
 from typing import Any, Dict, List
 
 from .yahoo_normalizer import YahooNormalizer
-from ....sports.normalizers import BasketballNormalizer
+from ...sport_normalizers import BasketballNormalizer
 
+# for debugging
+# from pprint import pprint 
 
 #############################################################################################
 #############################################################################################
 
-
+ 
 
 class YahooBasketballNormalizer(BasketballNormalizer, YahooNormalizer):
     """Normalizer for Yahoo Basketball data (NBA and NCAAB)."""
 
     def __init__(self, leagueId: str):
-        super().__init__(leagueId.upper(), "sport_basketball")
+        BasketballNormalizer.__init__(self, leagueId)
+        YahooNormalizer.__init__(self, leagueId)
 
-        # League-specific settings
-        self._base_minutes = 48 if self.leagueId == "NBA" else 40
-        self._regulation_periods = 4 if self.leagueId == "NBA" else 2
-        self._id_prefix = "nba" if self.leagueId == "NBA" else "ncaab"
+        self._id_prefix = "nba" if leagueId == "NBA" else "ncaab"
         self._stat_variation = f"{self._id_prefix}.stat_variation.2"
 
 
@@ -32,7 +32,7 @@ class YahooBasketballNormalizer(BasketballNormalizer, YahooNormalizer):
         gameId = gameData["gameid"]
         try:
             playerShots = self._set_player_shots(gameData)
-        except:
+        except KeyError:
             playerShots = None
         return playerShots
     
@@ -47,28 +47,28 @@ class YahooBasketballNormalizer(BasketballNormalizer, YahooNormalizer):
             base_pct = float(shot["baseline_offset_percentage"])
             side_pct = float(shot["sideline_offset_percentage"])
             base_pct_adjusted = base_pct * ((-1) ** int(shot["side_of_basket"] == "R"))
-            distance = int(math.sqrt((50 * base_pct_adjusted) ** 2 + (side_pct * 94) ** 2))
+            distance = int(sqrt((50 * base_pct_adjusted) ** 2 + (side_pct * 94) ** 2))
 
-            newShot = self._PlayerShots(
-                player_id=f"{self._id_prefix}.p.{shot['player']}",
-                team_id=f"{self._id_prefix}.t.{shot['team']}",
-                opp_id=teamIds["home"] if int(teamIds["home"].split(".")[-1]) != int(shot["team"]) else teamIds["away"],
-                game_id=gameId,
-                period=shot["period"],
-                shot_type_id=shot["type"],
-                assist_id=None if int(shot["assister"]) == 0 else f"{self._id_prefix}.p.{shot['assister']}",
-                shot_made=shot["shot_made"],
-                points=int(shot["points"]),
-                base_pct=base_pct,
-                side_pct=side_pct,
-                distance=distance,
-                fastbreak=shot["fastbreak"],
-                side_of_basket=shot["side_of_basket"],
-                clutch=(False if int(shot["period"]) < self._regulation_periods 
+            playerShots.append({
+                "player_id": f"{self._id_prefix}.p.{shot['player']}",
+                "team_id": f"{self._id_prefix}.t.{shot['team']}",
+                "opp_id": teamIds["home"] if int(teamIds["home"].split(".")[-1]) != int(shot["team"]) else teamIds["away"],
+                "game_id": gameId,
+                "play_num": shot["play_num"],
+                "period": shot["period"],
+                "shot_type_id": shot["type"],
+                "assist_id": None if int(shot["assister"]) == 0 else f"{self._id_prefix}.p.{shot['assister']}",
+                "shot_made": bool(int(shot["shot_made"])),
+                "points": int(shot["points"]),
+                "base_pct": base_pct,
+                "side_pct": side_pct,
+                "distance": distance,
+                "fastbreak": bool(int(shot["fastbreak"])),
+                "side_of_basket": shot["side_of_basket"],
+                "clutch": (False if int(shot["period"]) < self._regulation_periods 
                         else self._calculate_clutch(shot)),
-                zone=self._get_shot_zone(shot)
-            )
-            playerShots.append(newShot)
+                "zone": self._get_shot_zone(shot)
+            })
         return playerShots
     
 
@@ -94,37 +94,35 @@ class YahooBasketballNormalizer(BasketballNormalizer, YahooNormalizer):
 
             if raw_player_data and float(mins) > 0:
                 try:
-                    newPlayerStats = self._PlayerStats(
-                        player_id=playerId,
-                        game_id=gameId,
-                        team_id=teamId,
-                        opp_id=oppId,
-                        starter=(playerId in starters),
-                        minutes=mins,
-                        fgm=raw_player_data[f"{self._id_prefix}.stat_type.28"].split("-")[0],
-                        fga=raw_player_data[f"{self._id_prefix}.stat_type.28"].split("-")[1],
-                        ftm=raw_player_data[f"{self._id_prefix}.stat_type.29"].split("-")[0],
-                        fta=raw_player_data[f"{self._id_prefix}.stat_type.29"].split("-")[1],
-                        tpm=raw_player_data[f"{self._id_prefix}.stat_type.30"].split("-")[0],
-                        tpa=raw_player_data[f"{self._id_prefix}.stat_type.30"].split("-")[1],
-                        pts=raw_player_data[f"{self._id_prefix}.stat_type.13"],
-                        oreb=raw_player_data[f"{self._id_prefix}.stat_type.14"],
-                        dreb=raw_player_data[f"{self._id_prefix}.stat_type.15"],
-                        ast=raw_player_data[f"{self._id_prefix}.stat_type.17"],
-                        stl=raw_player_data[f"{self._id_prefix}.stat_type.18"],
-                        blk=raw_player_data[f"{self._id_prefix}.stat_type.19"],
-                        turnovers=raw_player_data[f"{self._id_prefix}.stat_type.20"],
-                        fouls=raw_player_data[f"{self._id_prefix}.stat_type.22"],
-                        plus_minus=raw_player_data.get(f"{self._id_prefix}.stat_type.32") if self.leagueId == "NBA" else None
-                    )
-                    playerStats.append(newPlayerStats)
+                    playerStats.append({
+                        "player_id": playerId,
+                        "game_id": gameId,
+                        "team_id": teamId,
+                        "opp_id": oppId,
+                        "starter": (playerId in starters),
+                        "mins": mins,
+                        "fgm": raw_player_data[f"{self._id_prefix}.stat_type.28"].split("-")[0],
+                        "fga": raw_player_data[f"{self._id_prefix}.stat_type.28"].split("-")[1],
+                        "ftm": raw_player_data[f"{self._id_prefix}.stat_type.29"].split("-")[0],
+                        "fta": raw_player_data[f"{self._id_prefix}.stat_type.29"].split("-")[1],
+                        "tpm": raw_player_data[f"{self._id_prefix}.stat_type.30"].split("-")[0],
+                        "tpa": raw_player_data[f"{self._id_prefix}.stat_type.30"].split("-")[1],
+                        "pts": raw_player_data[f"{self._id_prefix}.stat_type.13"],
+                        "oreb": raw_player_data[f"{self._id_prefix}.stat_type.14"],
+                        "dreb": raw_player_data[f"{self._id_prefix}.stat_type.15"],
+                        "ast": raw_player_data[f"{self._id_prefix}.stat_type.17"],
+                        "stl": raw_player_data[f"{self._id_prefix}.stat_type.18"],
+                        "blk": raw_player_data[f"{self._id_prefix}.stat_type.19"],
+                        "turns": raw_player_data[f"{self._id_prefix}.stat_type.20"],
+                        "fls": raw_player_data[f"{self._id_prefix}.stat_type.22"],
+                        "plus_minus": raw_player_data.get(f"{self._id_prefix}.stat_type.32") if self.leagueId == "NBA" else None
+                    })
                 except IndexError:
                     pass
         return playerStats
     
 
     def _set_team_stats(self, data: Dict[str, Any]) -> List["BasketballTeamStat"]:
-        print([key for key in data.keys()])
         gameData = data["gameData"]
         gameId = gameData["gameid"]
         teamIds = {"away": gameData["away_team_id"], "home": gameData["home_team_id"]}
@@ -135,38 +133,27 @@ class YahooBasketballNormalizer(BasketballNormalizer, YahooNormalizer):
             raw_stat_data = data["statsData"]["teamStatsByGameId"][gameId][teamIds[a_h]][self._stat_variation]
             # Adjust minutes for overtime: base + (extra periods * 5)
             minutes = self._base_minutes + (len(gameData["game_periods"]) - self._regulation_periods) * 5
-            try:
-                pts_in_pt = sum(
-                    int(x["points"]) * int(x["shot_made"])
-                    for x in gameData["play_by_play"].values()
-                    if x["class_type"] == "SHOT" and x["team"] == teamIds[a_h].split(".")[-1]
-                    and float(x["sideline_offset_percentage"]) <= 0.15
-                    and float(x["baseline_offset_percentage"]) <= 0.4
-                )
-            except KeyError:
-                pts_in_pt = None
-
-            newTeamStats = self._TeamStats(
-                game_id=gameId,
-                team_id=teamIds[a_h],
-                opp_id=oppIds[a_h],
-                minutes=minutes,
-                fga=raw_stat_data[f"{self._id_prefix}.stat_type.128"].split("-")[1],
-                fgm=raw_stat_data[f"{self._id_prefix}.stat_type.128"].split("-")[0],
-                fta=raw_stat_data[f"{self._id_prefix}.stat_type.129"].split("-")[1],
-                ftm=raw_stat_data[f"{self._id_prefix}.stat_type.129"].split("-")[0],
-                tpa=raw_stat_data[f"{self._id_prefix}.stat_type.130"].split("-")[1],
-                tpm=raw_stat_data[f"{self._id_prefix}.stat_type.130"].split("-")[0],
-                pts=raw_stat_data[f"{self._id_prefix}.stat_type.113"],
-                oreb=raw_stat_data[f"{self._id_prefix}.stat_type.114"],
-                dreb=raw_stat_data[f"{self._id_prefix}.stat_type.115"],
-                ast=raw_stat_data[f"{self._id_prefix}.stat_type.117"],
-                stl=raw_stat_data[f"{self._id_prefix}.stat_type.118"],
-                blk=raw_stat_data[f"{self._id_prefix}.stat_type.119"],
-                turnovers=raw_stat_data[f"{self._id_prefix}.stat_type.120"],
-                fouls=raw_stat_data[f"{self._id_prefix}.stat_type.122"],
-                pts_in_pt=pts_in_pt
-            )
-            teamStats.append(newTeamStats)
+            
+            teamStats.append({
+                "game_id": gameId,
+                "team_id": teamIds[a_h],
+                "opp_id": oppIds[a_h],
+                "minutes": minutes,
+                "fga": raw_stat_data[f"{self._id_prefix}.stat_type.128"].split("-")[1],
+                "fgm": raw_stat_data[f"{self._id_prefix}.stat_type.128"].split("-")[0],
+                "fta": raw_stat_data[f"{self._id_prefix}.stat_type.129"].split("-")[1],
+                "ftm": raw_stat_data[f"{self._id_prefix}.stat_type.129"].split("-")[0],
+                "tpa": raw_stat_data[f"{self._id_prefix}.stat_type.130"].split("-")[1],
+                "tpm": raw_stat_data[f"{self._id_prefix}.stat_type.130"].split("-")[0],
+                "pts": raw_stat_data[f"{self._id_prefix}.stat_type.113"],
+                "oreb": raw_stat_data[f"{self._id_prefix}.stat_type.114"],
+                "dreb": raw_stat_data[f"{self._id_prefix}.stat_type.115"],
+                "ast": raw_stat_data[f"{self._id_prefix}.stat_type.117"],
+                "stl": raw_stat_data[f"{self._id_prefix}.stat_type.118"],
+                "blk": raw_stat_data[f"{self._id_prefix}.stat_type.119"],
+                "turns": raw_stat_data[f"{self._id_prefix}.stat_type.120"],
+                "fouls": raw_stat_data[f"{self._id_prefix}.stat_type.122"]
+            })
+            
         return teamStats  
 

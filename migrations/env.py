@@ -5,7 +5,7 @@ from sqlalchemy import pool
 
 from alembic import context
 
-from fefelson_sports.database.models.database import Base
+from fefelson_sports.database.orms.database import Base
 
 # --- ADDED: dotenv support ---
 import os

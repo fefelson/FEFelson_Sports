@@ -1,39 +1,36 @@
-from copy import deepcopy
 from datetime import datetime
-from typing import List, Any, Dict
-import pytz
+from pytz import timezone
+from typing import Any, List
 
-from ....capabilities.normalizeable import NormalAgent
-#from ....utils.logging_manager import get_logger
-
-
-##########################################################################
-##########################################################################
-
-
-est = pytz.timezone('America/New_York')
+# for debugging
+from pprint import pprint
 
 
 ##########################################################################
 ##########################################################################
 
 
-class YahooNormalizer(NormalAgent):
+est = timezone('America/New_York')
+
+
+##########################################################################
+##########################################################################
+
+
+class YahooNormalizer:
     """ normalizer for Yahoo data."""
 
-    def __init__(self, leagueId: str, sportId: str):
+    def __init__(self, leagueId: str):
 
         self.leagueId = leagueId
-        self.sportId = sportId
-        #self.logger = get_logger()
+        
 
 
     def normalize_boxscore(self, webData: dict) -> dict:
-        # self.logger.debug("Normalize Yahoo boxscore")
 
         gameId = webData["gameData"]["gameid"]
         gameData = webData["gameData"]
-
+ 
         return {
             "provider": "yahoo",
             "game": self._set_game_info(gameData),
@@ -51,9 +48,16 @@ class YahooNormalizer(NormalAgent):
         }
 
 
+    def _starting_lineup(self, gameData):
+        try:
+            lineups = {x: gameData["lineups"][x] for x in ("away_lineup", "home_lineup")}
+        except KeyError:
+            lineups = None
+        return lineups
+
+
     def normalize_matchup(self, webData: dict) -> dict:
         #self.logger.debug("Normalize Yahoo matchup")
-
         gameData = webData["gameData"]
         gameId = gameData["gameid"]
 
@@ -64,7 +68,13 @@ class YahooNormalizer(NormalAgent):
                odds.append(o)
         except KeyError:
             odds = []
-       
+
+        try:
+            pitchers = gameData["byline"]["playersByType"]
+        except KeyError:
+            pitchers = None
+
+
         return {
             "provider": "yahoo",
             "gameId": gameData["gameid"],
@@ -78,9 +88,9 @@ class YahooNormalizer(NormalAgent):
             "statusType": gameData["status_type"].lower(),
             "gameType": gameData["game_type"].split(".")[-1].lower() if gameData["game_type"] else None,
             "odds": odds,
-            "byline": gameData["byline"],
-            "lineups": gameData.get("lineups", None),
-            "players": gameData["playersByTeam"],
+            "pitchers": pitchers,
+            "lineups": self._starting_lineup(gameData),
+            "players": {x: gameData["playersByTeam"][x] for x in (gameData["away_team_id"], gameData["home_team_id"])},
             "teams": [team for team in self._set_teams(webData["teamData"]["teams"])
                    if team["team_id"] in (gameData["away_team_id"], gameData["home_team_id"])],
             "injuries": [player["injury"] for player in webData["playerData"]["players"].values() if player.get("injury", None)],
@@ -91,31 +101,12 @@ class YahooNormalizer(NormalAgent):
 
     def normalize_player(self, data: dict) -> dict:
         #self.logger.debug("Normalize Yahoo player")
-        
-        if data.get("draft_team"):
-            draftPick = None if data["draft_team"]["pick"] == '' else data["draft_team"]["pick"]
-            draftRound = None if not isinstance(data["draft_team"]["round"], int) else data["draft_team"]["round"]
-            draftYear = None if data["draft_team"]["season"] == '' else data["draft_team"]["season"]
-            draftTeam = None if data["draft_team"]["team"]["team_id"] == '' else data["draft_team"]["team"]["team_id"]
-        else:
-            draftPick = None; draftRound = None; draftYear = None; draftTeam = None
-        
+                
         return {
-                "player_id": data["player_id"],
-                "sport_id": self.sportId,
-                "first_name": data["first_name"],
-                "last_name": data["last_name"],
-                "height": data["bio"]["height_cm"],
-                "weight": data["bio"]["weight_kg"],
-                "bats": data["bat"],
-                "throws": data["throw"],
-                "birthdate": str(datetime.strptime(data["bio"]["birth_date"], "%Y-%m-%d").date()),
-                "college": data.get("college"),
-                "draft_year": draftYear,
-                "draft_round":draftRound,
-                "draft_pick": draftPick,
-                "draft_team_id": draftTeam,
-                "rookie_season": data["bio"]["rookie_season"]
+                "bats": data["battingSide"][0],
+                "throws": data["throwingHand"][0],
+                "birthdate": str(datetime.strptime(data["birthDate"], "%Y-%m-%d").date()),
+                "rookie_season": data["firstYear"]
         }
 
 
@@ -138,18 +129,16 @@ class YahooNormalizer(NormalAgent):
                     url= game["navigation_links"]["boxscore"]["url"]
                 except (TypeError, KeyError):
                     url = None
-
+                
                 games.append({
-                        "provider": "yahoo",
                         "gameId": game["gameid"],
-                        "leagueId": self.leagueId,
                         "homeId": game["home_team_id"],
                         "awayId": game["away_team_id"],
                         "url": url,
                         "gameTime": str(datetime.strptime(game["start_time"], "%a, %d %b %Y %H:%M:%S %z").astimezone(est)), 
                         "season": game["season"],
-                        "week": game.get("week", None),
-                        "statusType": game["status_type"].lower(),
+                        "week": game.get("week_number", None),
+                        "status": game["status_type"].lower(),
                         "gameType": game["game_type"].split(".")[-1].lower() if game["game_type"] else None,
                         "odds": odds
                     })      
@@ -163,7 +152,7 @@ class YahooNormalizer(NormalAgent):
         raise NotImplementedError
 
 
-    def _set_game_info(self, game: Dict[str, Any]) -> dict:
+    def _set_game_info(self, game: dict) -> dict:
             
         winnerId = game.get("winning_team_id")
         if winnerId:
@@ -183,13 +172,13 @@ class YahooNormalizer(NormalAgent):
             "is_neutral_site": bool(game.get("tournament", 0)),
             "game_date": str(datetime.strptime(game["start_time"], "%a, %d %b %Y %H:%M:%S %z").astimezone(est)), 
             "season": game["season"],
-            "week": game.get("week", None),
+            "week": game.get("week_number", None),
             "game_type": game["season_phase_id"].split(".")[-1].lower(),
             "game_result": game["outcome_type"].split(".")[-1].lower() if game["outcome_type"] else "unknown"
         }
 
         
-    def _set_game_lines(self, data: Dict[str, Any]) -> List[Dict]:
+    def _set_game_lines(self, data: dict) -> List[dict]:
         gameId = data["gameid"]
         teamIds = {"away": data["away_team_id"], "home": data["home_team_id"]}
         oppIds = {"away": teamIds["home"], "home": teamIds["away"]}
@@ -231,13 +220,17 @@ class YahooNormalizer(NormalAgent):
         raise NotImplementedError
 
 
-    def _set_over_under(self, data: Dict[str, Any]) -> dict:
+    def _set_over_under(self, data: dict) -> dict:
         gameId = data["gameid"]
         try:
             odds = list(data["odds"].values())[-1]
         except:
             odds = None
-        total = int(data["total_away_points"]) + int(data["total_home_points"])
+        
+        try:
+            total = int(data["total_away_points"]) + int(data["total_home_points"])
+        except:
+            total = None
         
         overUnder = None
         try:
@@ -255,7 +248,7 @@ class YahooNormalizer(NormalAgent):
         return overUnder
 
 
-    def _set_period_data(self, data: Dict[str, Any]) -> List[dict]:
+    def _set_period_data(self, data: dict) -> List[dict]:
         gameId = data["gameid"]
         teamIds = {"away": data["away_team_id"], "home": data["home_team_id"]}
         oppIds = {"away": teamIds["home"], "home": teamIds["away"]}
@@ -278,7 +271,7 @@ class YahooNormalizer(NormalAgent):
         return periods
 
 
-    def _set_players(self, data: Dict[str, Any]) -> List[dict]:
+    def _set_players(self, data: dict) -> List[dict]:
         posTypes = dict([(key, value["abbr"]) for key, value in data["positions"].items()])
         players = []
         for key, value in data["players"].items():
@@ -290,12 +283,9 @@ class YahooNormalizer(NormalAgent):
             
             players.append({
                 "player_id": value["player_id"],
-                "sport_id": self.sportId,
                 "first_name": value["first_name"],
                 "last_name": value["last_name"],
-                "position": position,
-                "current_team_id": value["team_id"],
-                "uniform_number": value.get("uniform_number", -1)
+                "pos": position
             })
         return players
 
@@ -315,7 +305,7 @@ class YahooNormalizer(NormalAgent):
         return playerList
 
 
-    def _set_stadium(self, data: Dict[str, Any]) -> dict:
+    def _set_stadium(self, data: dict) -> dict:
         return {
             "stadium_id": data["stadium_id"],
             "name": data.get("stadium", None)

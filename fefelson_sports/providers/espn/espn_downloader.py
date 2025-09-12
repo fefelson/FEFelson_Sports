@@ -5,9 +5,22 @@ from urllib.request import urlopen
 import json
 import re 
 from time import sleep
-from ...capabilities.fileable import JSONAgent
-from ...capabilities.downloadable import DownloadAgent
-#from ...utils.logging_manager import get_logger
+
+from ...utils.logging_manager import get_logger
+
+# for debugging
+from pprint import pprint 
+
+
+######################################################################
+######################################################################
+
+
+BASE_URL = "https://www.espn.com"
+
+
+espnSlugs = {"NBA": "nba", "NCAAB": "mens-college-basketball", "MLB": "mlb", 
+                "NCAAF": "college-football", "NFL": "nfl"}
 
 
 ######################################################################
@@ -15,17 +28,18 @@ from ...capabilities.downloadable import DownloadAgent
 
 #logger = get_logger()
 
-class ESPNDownloadAgent(DownloadAgent):
+class ESPNDownloadAgent:
 
-    BASE_URL = "https://www.espn.com"
+    def __init__(self, leagueId):
+        self.leagueId = leagueId
 
-
-    @staticmethod   
-    def _fetch_url(url: str, sleepTime: int = 10, attempts: int = 3) -> Dict[str, Any]:
+   
+    def _fetch_url(self, url: str, sleepTime: int = 10, attempts: int = 3) -> Dict[str, Any]:
         """
         Recursive function to download yahoo url and isolate json
         Or write to errorFile
         """
+        item = {}
         try:
             html = urlopen(url)
             for line in [x.decode("utf-8") for x in html.readlines()]:
@@ -35,32 +49,123 @@ class ESPNDownloadAgent(DownloadAgent):
         except (URLError, HTTPError, ValueError) as e:
             #logger.error(e)
             # time.sleep(sleepTime)
-            ESPNDownloadAgent._fetch_url(url, sleepTime, attempts)
+            if 'odds' not in url:
+                get_logger().error(f"{url} {e}")
         return item
     
 
-    @staticmethod
-    def fetch_scoreboard(leagueId: str, gameDate: str) -> dict:
-        slugId = {"NBA": "nba", "NCAAB": "college-basketball", "MLB": "mlb"}[leagueId]
-        schedUrl = ESPNDownloadAgent.BASE_URL+f"/{slugId}/scoreboard/_/date/{''.join(gameDate.split('-'))}"       
-        data = ESPNDownloadAgent._fetch_url(schedUrl)
+    def fetch_scoreboard(self, gameDate: str) -> dict:
+        url = f"{BASE_URL}/{espnSlugs[self.leagueId]}/scoreboard"
+               
+        if gameDate is not None:
+            date = f"date/{''.join(gameDate.split('-'))}"
+            url = f"{url}/_/{date}"  
+  
+        data = self._fetch_url(url)
         data["provider"] = "espn"
         return data
     
 
-    @staticmethod
-    def fetch_boxscore(game: dict) -> dict:
+    def fetch_boxscore(self, url: str) -> dict:
+        if BASE_URL not in url:
+            url = f"{BASE_URL}{url}"
         
-        gameUrl = ESPNDownloadAgent.BASE_URL+game["url"]
-        pbpUrl = re.sub("game", "playbyplay", gameUrl, 1)
-        pbp = ESPNDownloadAgent._fetch_url(pbpUrl)["page"]["content"]["gamepackage"]
-        box = ESPNDownloadAgent._fetch_url(gameUrl)["page"]["content"]["gamepackage"]
-        data = {"box":box, "pbp":pbp, "provider":"espn"}
+        pbpUrl = re.sub("game", "playbyplay", url, 1)
+        boxUrl = re.sub("game", "boxscore", url, 1)
+        matchUrl = re.sub("game", "matchup", url, 1)
+        game = self._fetch_url(url)["page"]["content"]["gamepackage"]
+        pbp = self._fetch_url(pbpUrl)["page"]["content"]["gamepackage"]
+        box = self._fetch_url(boxUrl)["page"]["content"]["gamepackage"]
+        match = self._fetch_url(matchUrl)["page"]["content"]["gamepackage"]
+        data = {"boxData":box, "pbpData":pbp, "gameData":game, "matchData":match, "provider":"espn"}
+
+        return data
+
+
+    def fetch_matchup(self, url: str) -> dict:
+        if BASE_URL not in url:
+            url = f"{BASE_URL}{url}"
+        
+        oddsUrl = re.sub("game", "odds", url, 1)
+
+        game = self._fetch_url(url)["page"]["content"]["gamepackage"]
+        try:
+            odds = self._fetch_url(oddsUrl)["page"]["content"]["gamepackage"]
+        except:
+            odds = None
+    
+        data = {"oddsData":odds, "gameData":game, "provider":"espn"}
+
         return data
         
 
 
+class ESPNNFLDownloadAgent(ESPNDownloadAgent):
+
+    def __init__(self, leagueId):
+        super().__init__(leagueId)
+
+
+    def fetch_scoreboard(self, gameDate: str) -> dict:
+        url = f"{BASE_URL}/{espnSlugs[self.leagueId]}/scoreboard"
+               
+        if gameDate is not None:
+            w = int(gameDate.split('_')[-1])
+            s = 2
+            if w > 18:
+                w = w-18
+                seasonType = 3
+            week = f"week/{w}"
+            seasonType = f"seasontype/{s}"
+            year = f"year/{gameDate.split('_')[0]}"
+            url = f"{url}/_/{week}/{year}/{seasonType}"  
+ 
+        data = self._fetch_url(url)
+        data["provider"] = "espn"
+        return data
+
+
+class ESPNNCAAFDownloadAgent(ESPNDownloadAgent):
+
+    def __init__(self, leagueId):
+        super().__init__(leagueId)
+
+
+    def fetch_scoreboard(self, gameDate: str) -> dict:
+        url = f"{BASE_URL}/{espnSlugs[self.leagueId]}/scoreboard/_/group/80"
+               
+        if gameDate is not None:
+            w = int(gameDate.split('_')[-1])
+            s = 2
+            if w > 16:
+                w = w-16
+                s = 3
+            week = f"week/{w}"
+            seasonType = f"seasontype/{s}"
+            year = f"year/{gameDate.split('_')[0]}"
+            url = f"{url}/{week}/{year}/{seasonType}" 
+
+        data = self._fetch_url(url)
+        data["provider"] = "espn"
+        return data
+
+
+class ESPNNCAABDownloadAgent(ESPNDownloadAgent):
+
+    def __init__(self, leagueId):
+        super().__init__(leagueId)
+
+
+    def fetch_scoreboard(self, gameDate: str) -> dict:
+        url = f"{BASE_URL}/{espnSlugs[self.leagueId]}/scoreboard/_/group/50"
+               
+        if gameDate is not None:
+            date = f"date/{''.join(gameDate.split('-'))}/"
+            url = f"{url}/{date}" 
         
+        data = self._fetch_url(url)
+        data["provider"] = "espn"
+        return data
 
        
 

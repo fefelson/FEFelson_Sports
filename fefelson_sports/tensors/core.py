@@ -6,14 +6,14 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset, Sampler, Subset
 
-from sports_db.database.models.database import get_db_session
-from sports_scraper.utils.logging_manager import get_logger
+from fefelson_sports.database.models.database import get_db_session
+from fefelson_sports.utils.logging_manager import get_logger
 
 
 ######################################################################
 ######################################################################
 
-BASE_PATH = os.environ["HOME"] + "/FEFelson/leagues"
+BASE_PATH = os.environ["HOME"] + "/FEFelson/FEFelson_Sports/leagues"
 
 ######################################################################
 ######################################################################
@@ -136,7 +136,7 @@ class CustomDataset(Dataset):
         # print(row)
         
         dtype = torch.float32 if self._label in [ftr["ftr"] for ftr in self._select_stmt(self._numeric_features)] else torch.long
-        labels = torch.tensor([row[x] for x in self._label], dtype=dtype)
+        labels = torch.tensor(row[self._label], dtype=dtype)
         return features, labels
 
 

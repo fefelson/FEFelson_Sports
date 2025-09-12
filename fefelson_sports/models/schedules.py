@@ -1,46 +1,48 @@
-from datetime import datetime, timedelta
-from typing import List
+from datetime import date, timedelta
 
-from ..capabilities import Processable
+from ..database.stores.base import LeagueStore
+
+# for debugging
+from pprint import pprint 
 
 ####################################################################
 ####################################################################
 
 
-
-class Schedule(Processable):
-
-    @staticmethod
-    def is_active(config: dict) -> bool:
-         # Convert string dates to datetime.date objects
-        startDate = datetime.strptime(config.get("start_date"), "%Y-%m-%d")
-        endDate = datetime.strptime(config.get("end_date"), "%Y-%m-%d")
-
-        # Correct logic: today must be on or after start_date and before end_date
-        return startDate <= datetime.today() < endDate
+today = date.today()
 
 
-    @staticmethod
-    def is_uptodate(config: dict) -> bool:
-        lastUpdate = config.get("last_update")
-        if not lastUpdate:
-            return False
-        else:
-            # Convert string dates to datetime.date objects
-            lastUpdate = datetime.strptime(config.get("last_update"), "%Y-%m-%d").date()+timedelta(1)
-            today = datetime.today().date()
-            return lastUpdate < today
-    
+####################################################################
+####################################################################
 
-    def process(config: dict, nGD: int=0) -> List[str]:
-        """
-            Used to process boxscore lists and matchup lists by use of nGD or number of GameDates
-                -  nGD > 0 adds today plus n-1 games of matchup GameDates
-                -  an empty dateString means last_update = None 
-        """
+
+class Schedule:
+
+    def __init__(self, leagueId):
+        self.leagueId = leagueId
+        self.leagueStore = LeagueStore()
+
+
+    def current_until(self, gameDate):
         raise NotImplementedError
-    
 
+
+    def get_back_dates(self):
+        raise NotImplementedError
+
+
+
+    def get_future_dates(self, nGD):
+        raise NotImplementedError
+
+
+    def is_active(self) -> bool:
+        league = self.leagueStore.get_major_dates(self.leagueId)
+        return league["startDate"] <= today < league["endDate"]
+
+
+    def is_up_to_date(self) -> bool:
+        raise NotImplementedError
 
 ####################################################################
 ####################################################################
@@ -50,24 +52,43 @@ class Schedule(Processable):
 class DailySchedule(Schedule):
         
     
-    @staticmethod
-    def process(config: dict, nGD: int=0) -> List[str]:
+    def current_until(self, gameDate):
+        self.leagueStore.set_last_update(self.leagueId, date.fromisoformat(gameDate))
 
-        gameDateList = []
-        if config.get("last_update"):
-            startDate = datetime.strptime(config.get("last_update"), "%Y-%m-%d").date()+timedelta(1)
+
+    def get_back_dates(self):
+        backDates = []
+        gameDate = self.leagueStore.get_last_update(self.leagueId)
+        while gameDate < today:
+            
+            backDates.append(str(gameDate))
+            gameDate += timedelta(1)
+        
+        # print("\nback dates")
+        # pprint(backDates)
+        return backDates
+
+
+    def get_future_dates(self, nGD):
+        futureDates = []
+        gameDate = today 
+        for i in range(nGD):
+
+            gameDate += timedelta(i)
+            futureDates.append(str(gameDate))
+        
+        # print("\nfuture dates")
+        # pprint(futureDates)
+        return futureDates
+
+
+
+    def is_up_to_date(self) -> bool:
+        lastUpdate = self.leagueStore.get_last_update(self.leagueId)
+        if lastUpdate is None:
+            return False
         else:
-            startDate = datetime.strptime(config.get("start_date"), "%Y-%m-%d").date()
-
-        tempDate = datetime.strptime(config.get("end_date"), "%Y-%m-%d").date()
-        endDate = tempDate if tempDate < datetime.today().date() else datetime.today().date() + timedelta(nGD)
-
-        gameDateList = []
-        while startDate < endDate:
-            gameDateList.append(str(startDate))
-            startDate += timedelta(1)
-        print(gameDateList)
-        return gameDateList
+            return lastUpdate == today - timedelta(1)
 
 
 
@@ -77,10 +98,76 @@ class DailySchedule(Schedule):
 
 
 class WeeklySchedule(Schedule):
+
+
+    def _get_week(self, gameDate):
+        found = 0 
+        weeks = sorted(self.leagueStore.get_weeks(self.leagueId), key=lambda x: x["week_num"])
+        for week in weeks:
+            if week["start_date"] <= gameDate <= week["end_date"]:
+                found = week["week_num"]
+                break
+        return found
+
     
-    @staticmethod
-    def process(config: dict, nGD: int=0) -> List[str]:
-        raise NotImplementedError
+    def current_until(self, gameDate):
+        currentDate = None
+        gameDate = gameDate.split("_")[-1]
+        weeks = sorted(self.leagueStore.get_weeks(self.leagueId), key=lambda x: x["week_num"])
+        for week in weeks:
+            if int(gameDate) == week["week_num"]:
+                currentDate = week["end_date"]
+                break
+
+        if currentDate:
+            self.leagueStore.set_last_update(self.leagueId, currentDate)
+
+
+    def get_back_dates(self):
+        season = self.leagueStore.get_current_season(self.leagueId)
+        lastUpdate = self.leagueStore.get_last_update(self.leagueId)
+        if not lastUpdate:
+            lastUpdate = self.leagueStore.get_major_dates(self.leagueId)["startDate"]
+        weeks = sorted(self.leagueStore.get_weeks(self.leagueId), key=lambda x: x["week_num"])
+
+        backDates = []
+        for week in weeks:
+            if week["start_date"] > lastUpdate and today > week["end_date"]:
+                backDates.append(f"{season}_{week['week_num']}")
+        
+        # print("\nback dates")
+        # pprint(backDates)
+        return backDates
+
+
+    def get_future_dates(self, nGD):
+        season = self.leagueStore.get_current_season(self.leagueId)
+        gameWeek = self._get_week(today)
+        futureDates = []
+        for i in range(nGD):
+            gameWeek += i
+            if gameWeek > 0:
+                futureDates.append(f"{season}_{gameWeek}")
+        
+        # print("\nfuture dates")
+        # pprint(futureDates)
+        return futureDates
+
+
+    def is_up_to_date(self) -> bool:
+        lastUpdate = self.leagueStore.get_last_update(self.leagueId)
+        if lastUpdate is None:
+            return False
+
+        updateWeek = self._get_week(lastUpdate)
+        todayWeek = self._get_week(today)
+
+        return ((todayWeek -1) - updateWeek) <= 0
+               
+        
+
+        
+        
     
         
         

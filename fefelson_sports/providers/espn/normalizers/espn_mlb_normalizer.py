@@ -1,13 +1,12 @@
-import math
 import re
 from itertools import chain
 from typing import Any, Dict, List
 
 from .espn_normalizer import ESPNNormalizer
-from ....sports.normalizers import BaseballNormalizer
+from ...sport_normalizers import BaseballNormalizer
 
 # for debugging
-from pprint import pprint
+# from pprint import pprint
 
 
 #############################################################################################
@@ -101,17 +100,17 @@ class ESPNMLBNormalizer(BaseballNormalizer, ESPNNormalizer):
     """Normalizer for ESPN Baseball data (MLB)."""
 
     def __init__(self, leagueId: str):
-        super().__init__("MLB", "sport_baseball")
+        super().__init__("MLB")
 
 
     def _set_atbats(self, data):
 
-        plays = {p["id"]: p for p in data["box"]["plys"]}
+        plays = {p["id"]: p for p in data["gameData"]["plys"]}
         playList = sorted([key for key in plays])
 
         atBats = []
         try:
-            for half_inning in data["pbp"]["pbp"]:
+            for half_inning in data["pbpData"]["pbp"]:
 
                 for atBat in [atBat for atBat in half_inning.get("plays") if not atBat.get("isInfoPlay", False) and not atBat.get("isPitcherChange", False)]:
                    
@@ -153,16 +152,21 @@ class ESPNMLBNormalizer(BaseballNormalizer, ESPNNormalizer):
 
 
     def _set_pitches(self, data):
-        # pprint(webData)
+        playersDict = {}
+        for team in data["gameData"]["bxscr"]:
+            for b_p in team["stats"]:
+                for athlt in b_p["athlts"]:
+                    playersDict[athlt["athlt"]["dspNm"]] = athlt["athlt"]["id"]
 
-        gameId = data["box"]["gmStrp"]["gid"]
-        plays = {p["id"]: p for p in data["box"]["plys"]}
+
+        gameId = data["gameData"]["gmStrp"]["gid"]
+        plays = {p["id"]: p for p in data["gameData"]["plys"]}
         playList = sorted([key for key in plays])
 
         pitches = []
         pitch_count = {}
         try:
-            for half_inning in data["pbp"]["pbp"]:
+            for half_inning in data["pbpData"]["pbp"]:
                 for atBat in [atBat for atBat in half_inning.get("plays") if not atBat.get("isInfoPlay", False) and not atBat.get("isPitcherChange", False)]:
  
                     if atBat.get("pitches"):
@@ -214,11 +218,11 @@ class ESPNMLBNormalizer(BaseballNormalizer, ESPNNormalizer):
                                 )
                                 bin = bin_strike(pitch)
                                 pitches.append({
-                                    "game_id": "FILL IN",
-                                    "batter_id": players["batter"],
-                                    "pitcher_id": players["pitcher"],
-                                    "team_id": f"mlb.t.{firstPlay['tm']}",
-                                    "opp_id": f"mlb.t.{lastPlay['tm']}",
+                                    "game_id": gameId,
+                                    "batter_id": playersDict[players["batter"]],
+                                    "pitcher_id": playersDict[players["pitcher"]],
+                                    "team_id": firstPlay['tm'],
+                                    "opp_id": lastPlay['tm'],
                                     "play_num": str(int((round(int(re.sub(gameId, "", pitch["id"])), -2)/10000)-1)),
                                     "pitch_count": pc,
                                     "sequence": pitch.get("count"),
@@ -228,8 +232,6 @@ class ESPNMLBNormalizer(BaseballNormalizer, ESPNNormalizer):
                                     "pitch_x": pitch["ptchCoords"]['x'],
                                     "pitch_y": pitch["ptchCoords"]['y'],
                                     "pitch_location": bin,
-                                    "hit_x": hitX,
-                                    "hit_y": hitY,
                                     "pitch_type_name": pitch["ptchDsc"].lower(),
                                     "ab_result_name": abResult if pitchResult != abResult else None,
                                     "pitch_result_name": pitchResult
@@ -285,43 +287,50 @@ class ESPNMLBNormalizer(BaseballNormalizer, ESPNNormalizer):
 
     def _set_player_stats(self, webData):
         # pprint(webData)
+        playerStats = None 
+        try:
+            webData = webData["bxscr"]
+            playerStats = {
+                "batting": self._set_mlb_player_stats(webData, b_p="B"),
+                "pitching": self._set_mlb_player_stats(webData, b_p="P")
+            }
+        except KeyError:
+            pass 
 
-        playerStats = {
-            "batting": self._set_mlb_player_stats(webData, b_p="B"),
-            "pitching": self._set_mlb_player_stats(webData, b_p="P")
-        }
         return playerStats
 
 
     def _set_misc(self, webData):
         # pprint(webData)
-        
-        misc = {
-            "plays": webData["box"]["plys"],
-            "at_bats": self._set_atbats(webData),
-            "pitches": self._set_pitches(webData)
-        }
+        misc = None 
+        try:
+            misc = {
+                "plays": webData["gameData"]["plys"],
+                "at_bats": self._set_atbats(webData),
+                "pitches": self._set_pitches(webData)
+            }
+        except KeyError:
+            pass
         return misc
 
 
     def _set_team_stats(self, data: Dict[str, Any]) -> List[Dict]:
-        # pprint(data)
 
         teamStats = []
         try:
             for i in range(2):
-                tmData = data["bxscr"][i]["tm"]
-                batData = data["bxscr"][i]["stats"][0]
-                pitchData = data["bxscr"][i]["stats"][1]  
-                a_h = "away" if tmData["id"] == data["shtChrt"]["tms"]["away"]["id"] else "home"
+                tmData = data["gameData"]["bxscr"][i]["tm"]
+                batData = data["gameData"]["bxscr"][i]["stats"][0]
+                pitchData = data["gameData"]["bxscr"][i]["stats"][1]  
+                a_h = "away" if tmData["id"] == data["gameData"]["shtChrt"]["tms"]["away"]["id"] else "home"
 
                 teamStats.append({
                     "team_id": f"mlb.t.{tmData['id']}",
-                    "errors":  data["shtChrt"]["tms"][a_h]["errors"],
+                    "errors":  data["gameData"]["shtChrt"]["tms"][a_h]["errors"],
                     "batting": dict(zip([x.lower() for x in batData["lbls"]],[x.lower() for x in batData["ttls"]])),
                     "pitching": dict(zip([x.lower() for x in pitchData["lbls"]],[x.lower() for x in pitchData["ttls"]]))
                 })
-        except:
-            raise
+        except KeyError:
+            pass
         return teamStats  
 

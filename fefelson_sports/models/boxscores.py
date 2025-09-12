@@ -1,117 +1,70 @@
-from datetime import datetime
-from typing import Any, Dict
-import os
-
-from ..capabilities import Fileable, Normalizable, Processable, Downloadable, Databaseable
-from ..capabilities.databaseable import SQLAlchemyDatabaseAgent
-from ..capabilities.fileable import get_file_agent
+from ..database.stores.base import ProviderStore
+from ..database.stores.core import GameStore
 from ..providers import get_download_agent, get_normal_agent
 from ..utils.logging_manager import get_logger
 
+# for debugging
+# from pprint import pprint 
 
 ######################################################################
 ######################################################################
 
 
-basePath = os.path.join(os.environ["HOME"], "FEFelson/FEFelson_Sports/leagues")
+class Boxscore():
 
-
-######################################################################
-######################################################################
-
-
-
-class Boxscore(Databaseable, Downloadable, Fileable, Normalizable, Processable):
-
-    _fileType = "pickle"
-    _fileAgent = get_file_agent(_fileType)
-
-
-    def __init__(self, leagueId: str, dbAgent: "DatabaseAgent"):
+    def __init__(self, leagueId: str):
         super().__init__()
 
         self.leagueId = leagueId
-        self.dbAgent = dbAgent
-        self.set_file_agent(self._fileAgent)
+        self.gameStore = GameStore()
+        self.providerStore = ProviderStore()
 
 
-        self.logger = get_logger()
-
-
-    def download(self, game: dict) -> Dict[str, Any]:
-        downloadAgent = get_download_agent(self.leagueId, game["provider"])
+    def download(self, provider: str, url: str) -> dict:
+        downloadAgent = get_download_agent(self.leagueId, provider)
         try:
-            webData = downloadAgent.fetch_boxscore(game)
+            webData = downloadAgent.fetch_boxscore(url)
         except KeyError:
             webData = None
         return webData
 
 
-    def load_from_db(self):
-        """Loads data from the database into dataclass object using and returns it."""
-        print(f"Databaseable.load_from_db called ")
-        raise NotImplementedError
-
-
-    def normalize(self, webData: dict) -> Dict[str, Any]:
+    def normalize(self, webData: dict) -> dict:
         if webData is None:
             return None
         normalAgent = get_normal_agent(self.leagueId, webData["provider"])
         return normalAgent.normalize_boxscore(webData)
 
 
-    def process(self, game: dict) :
-        self.logger.debug("processing Boxscore")
-
-        # from pprint import pprint 
+    def process(self, game: dict, session = None) -> dict:
         # pprint(game)
-        # raise
 
-        self.set_file_path(game["yahoo"])
+        gameId = self.gameStore.create_gameId(self.leagueId, game["homeId"], game["gameTime"])
+        if (game["gameType"] in ("preseason", "spring training", "all-star") 
+            or game["status"] in ("postponed",)
+            or int(game["homeId"]) == -1 or int(game["awayId"]) == -1
+            or self.gameStore.get_by_id(gameId, session)):
+            return None 
 
-        if self.file_exists():
-
-            webData = self.read_file()
-
-            yahooBox = webData["yahoo"]
-            espnBox = webData["espn"]
-        else:
-            yahooBox = None
-            if game["yahoo"]["url"]:
-                yahooBox = self.download(game["yahoo"])
-                espnBox = None
-                if game.get("espn"):
-                    espnBox = self.download(game["espn"])
-                
-                self.write_file({"espn": espnBox, "yahoo": yahooBox})
-
-        if yahooBox is None:
-            return None
-        else:
-            return {"yahooBox": self.normalize(yahooBox), "espnBox": self.normalize(espnBox)}
-
-
-    def save_to_db(self, boxscore: dict):
-        """Saves self.data to the database."""
-        try:
-            self.dbAgent.insert_boxscore(boxscore)
-        except Exception as e:
-            # Catch unexpected errors
-            self.logger.error(f"Failed to save boxscore to db: Unexpected error - {type(e).__name__}: {str(e)}")
-            raise #: re-raise for debugging
-        else:
-            # Runs if no exception occurs
-            self.logger.info("Boxscore saved to db successfully")
-        # Optional: Add a finally block if you need cleanup
+        get_logger().debug(f"processing Boxscore {game['title']}")
+        
+        boxScores = {}        
+        boxScores["game_id"] = gameId
+        boxScores["home_id"] = game["homeId"]
+        boxScores["away_id"] = game["awayId"]
+        
+        for provider, url in game["urls"].items():
+            webData = self.download(provider, url)
+            boxScores[provider] = self.normalize(webData)
+        return boxScores
+ 
 
 
 
-    def set_file_path(self, game: dict):
-        if game.get("week"):
-            gamePath = f"/{self.leagueId.lower()}/boxscores/{game['season']}/{game['week']}/{game['gameId'].split('.')[-1]}.{self._fileAgent.get_ext()}"
-        else:
-            month, day = str(datetime.fromisoformat(game["gameTime"]).date()).split("-")[1:]
-            gamePath = f"/{self.leagueId.lower()}/boxscores/{game['season']}/{month}/{day}/{game['gameId'].split('.')[-1]}.{self._fileAgent.get_ext()}"
-        self.filePath = basePath+gamePath
+
+       
+          
+
+
 
     

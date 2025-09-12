@@ -1,36 +1,42 @@
 import pandas as pd
 import torch
 
-from felson_tensors.tensors.baseball.baseball_atomics import (PitchTypeSelect, PitchLocationSelect, PitchVelocitySelect)
-from felson_tensors.tensors.baseball.datasets import (PitchTypeDataset, PitchLocationDataset, PitchVelocityDataset)
-from felson_tensors.tensors.trainer import BinaryTrainer, ClassifyTrainer, RegressionTrainer
+from fefelson_sports.tensors.baseball.baseball_atomics import (NumBasesIfHit, IsHR, IsHit, HitDistanceSelect, HitAngleSelect, HitStyleSelect, PitchTypeSelect, PitchXSelect, PitchYSelect, PitchVelocitySelect, IsSwing, SwingResult)
+from fefelson_sports.tensors.baseball.datasets import (NumBasesIfHitDataset, IsHRDataset, IsHitDataset, HitDistanceDataset, HitAngleDataset, HitStyleDataset, PitchTypeDataset, PitchXDataset, PitchYDataset, PitchVelocityDataset, IsSwingDataset, SwingResultDataset)
+from fefelson_sports.tensors.trainer import BinaryTrainer, ClassifyTrainer, RegressionTrainer
 
-from sports_db.database.models.database import get_db_session
+from fefelson_sports.database.models.database import get_db_session
 
 PITCH_TYPE_LABELS = ["changeup", "curve", "cutter", "two-seam fb", "fastball", "forkball", "four-seam fb",
-                                         "sweeper", "splitter", "screwball", "sinker", "slider", "slow curve", "slurve", 
-                                         "knuckle curve", "knuckleball", "eephus pitch"]
+                    "sweeper", "splitter", "screwball", "sinker", "slider", "slow curve", "slurve", 
+                    "knuckle curve", "knuckleball", "eephus pitch"]
 
 
-BATTER_QUERY = """SELECT p.batter_id, players.first_name, players.last_name, players.bats
-                    FROM players 
-                    INNER JOIN pitches AS p ON players.player_id = p.batter_id
-                    GROUP BY 
-                        p.batter_id, players.first_name, players.last_name, players.bats
-                    HAVING 
-                        COUNT(p.pitch_id) > 999;       
+BATTER_QUERY = """SELECT p.batter_id
+                    FROM pitches p
+                    WHERE p.batter_id IN (
+                        SELECT DISTINCT p2.batter_id
+                        FROM pitches p2
+                        INNER JOIN games g ON p2.game_id = g.game_id
+                        WHERE g.season = 2025
+                    )
+                    GROUP BY p.batter_id
+                    HAVING COUNT(p.pitch_id) > 333;      
                 """
 
 
-PITCHER_QUERY = """SELECT p.pitcher_id, players.first_name, players.last_name, players.throws
-                    FROM players 
-                    INNER JOIN pitches AS p ON players.player_id = p.pitcher_id
-                    GROUP BY 
-                        p.pitcher_id, players.first_name, players.last_name, players.throws
-                    HAVING 
-                        COUNT(p.pitch_id) > 999;
-
-                """
+PITCHER_QUERY = """
+                    SELECT p.pitcher_id
+                    FROM pitches p
+                    WHERE p.pitcher_id IN (
+                        SELECT DISTINCT p2.pitcher_id
+                        FROM pitches p2
+                        INNER JOIN games g ON p2.game_id = g.game_id
+                        WHERE g.season = 2025
+                    )
+                    GROUP BY p.pitcher_id
+                    HAVING COUNT(p.pitch_id) > 999;
+                    """
 
 
 STADIUM_QUERY = """SELECT DISTINCT s.stadium_id, s.name
@@ -48,11 +54,7 @@ def query_db(query):
     return df
 
 
-def num_bases():
-    
-    atomicTrainer = ClassifyTrainer(class_labels=["single", "double", "triple", "hr"])
-    atomicTrainer.dojo(NumBasesIfHit(), NumBasesIfHitDataset(), patience=5)
-    
+def num_bases():   
 
     for _, row in query_db(STADIUM_QUERY).iterrows():
 
@@ -66,11 +68,7 @@ def num_bases():
             pass
 
 
-def is_hit():
-    
-    atomicTrainer = BinaryTrainer(class_labels=["out", "hit"])
-    atomicTrainer.dojo(IsHit(), IsHitDataset(), patience=5)
-    
+def is_hit():   
 
     for _, row in query_db(STADIUM_QUERY).iterrows():
 
@@ -84,33 +82,62 @@ def is_hit():
             pass
 
 
-# def is_hr():
+def is_hr():
     
     
-#     for _, row in query_db(STADIUM_QUERY).iterrows():
+    for _, row in query_db(STADIUM_QUERY).iterrows():
 
-#         stadiumId = row["stadium_id"]
-#         print(f"\n\n{row['name']}\n")
+        stadiumId = row["stadium_id"]
+        print(f"\n\n{row['name']}\n")
 
-#         atomicTrainer = BinaryTrainer(class_labels=["weak", "HR"])
-#         try:
-#             atomicTrainer.dojo(IsHR(stadiumId=stadiumId), IsHRDataset(entityId=stadiumId))
-#         except ValueError:
-#             pass
+        atomicTrainer = BinaryTrainer(class_labels=["weak", "HR"])
+        try:
+            atomicTrainer.dojo(IsHR(stadiumId=stadiumId), IsHRDataset(entityId=stadiumId))
+        except ValueError:
+            pass
 
 
-# def is_swing():
+def is_swing():
     
-#     atomicTrainer = BinaryTrainer(class_labels=["NO", "YES"])
-#     for bats in ("R", "L", "S"):
-#         atomicTrainer.dojo(IsSwing(entityId=bats), IsSwingDataset(condition=f"batter.bats = '{bats}'"))
+    atomicTrainer = BinaryTrainer(class_labels=["NO", "YES"])
+    for _, row in query_db(BATTER_QUERY).iterrows():
+        batterId = row['batter_id']
+        try:
+            atomicTrainer.dojo(IsSwing(entityId=batterId), IsSwingDataset(entityId=batterId))
+        except ValueError:
+            pass
 
-
-# def swing_result():
+def swing_result():
     
-#     atomicTrainer = ClassifyTrainer(class_labels=["swinging strike", "foul ball", "in play"])
-#     for bats in ("R", "L", "S"):
-#         atomicTrainer.dojo(SwingResult(entityId=bats), SwingResultDataset(condition=f"batter.bats = '{bats}'")) 
+    atomicTrainer = ClassifyTrainer(class_labels=["swinging strike", "foul ball", "in play"])
+    for _, row in query_db(BATTER_QUERY).iterrows():
+        batterId = row['batter_id']
+        try:
+            atomicTrainer.dojo(SwingResult(entityId=batterId), SwingResultDataset(entityId=batterId))
+        except ValueError:
+            pass
+
+
+def hit_distance():
+    
+    atomicTrainer = RegressionTrainer()
+    for _, row in query_db(BATTER_QUERY).iterrows():
+        batterId = row['batter_id']
+        try:
+            atomicTrainer.dojo(HitDistanceSelect(entityId=batterId), HitDistanceDataset(entityId=batterId))
+        except ValueError:
+            pass
+
+
+def hit_angle():
+    
+    atomicTrainer = RegressionTrainer()
+    for _, row in query_db(BATTER_QUERY).iterrows():
+        batterId = row['batter_id']
+        try:
+            atomicTrainer.dojo(HitAngleSelect(entityId=batterId), HitAngleDataset(entityId=batterId))
+        except ValueError:
+            pass
 
 
 
@@ -154,6 +181,22 @@ def get_pitcher_class_weights(pitcher_id: int, num_classes: int = 17, smoothing:
     return torch.tensor(weights, dtype=torch.float32)
 
 
+
+def pitch_velocity_select():
+
+    # atomicTrainer = RegressionTrainer(n=2)
+    # for throws in ("R", "L"):
+    #     atomicTrainer.dojo(PitchLocationSelect(entityId=throws), PitchLocationDataset(condition=f"pitcher.throws = '{throws}'"), patience=-1)
+
+    for _, row in query_db(PITCHER_QUERY).iterrows():
+        pitcherId = row['pitcher_id']
+        atomicTrainer = RegressionTrainer()
+        try:
+            atomicTrainer.dojo(PitchVelocitySelect(entityId=pitcherId), PitchVelocityDataset(entityId=pitcherId))
+        except ValueError:
+            pass
+
+
 def pitch_location_select():
 
     atomicTrainer = RegressionTrainer(n=2)
@@ -169,7 +212,34 @@ def pitch_location_select():
             pass
 
 
+def pitch_x_select():
+    
+    # atomicTrainer = ClassifyTrainer(class_labels=PITCH_TYPE_LABELS, class_weights=class_weights)
+    # for throws in ("R", "L"):
+    #     atomicTrainer.dojo(PitchTypeSelect(entityId=throws), PitchTypeDataset(condition=f"pitcher.throws = '{throws}'"), patience=2) 
 
+    for _, row in query_db(PITCHER_QUERY).iterrows():
+        pitcherId = row['pitcher_id']
+        atomicTrainer = RegressionTrainer()
+        try:
+            atomicTrainer.dojo(PitchXSelect(entityId=pitcherId), PitchXDataset(entityId=pitcherId)) 
+        except ValueError:
+            pass
+
+
+def pitch_y_select():
+    
+    # atomicTrainer = ClassifyTrainer(class_labels=PITCH_TYPE_LABELS, class_weights=class_weights)
+    # for throws in ("R", "L"):
+    #     atomicTrainer.dojo(PitchTypeSelect(entityId=throws), PitchTypeDataset(condition=f"pitcher.throws = '{throws}'"), patience=2) 
+
+    for _, row in query_db(PITCHER_QUERY).iterrows():
+        pitcherId = row['pitcher_id']
+        atomicTrainer = RegressionTrainer()
+        try:
+            atomicTrainer.dojo(PitchYSelect(entityId=pitcherId), PitchYDataset(entityId=pitcherId)) 
+        except ValueError:
+            pass
 
 def pitch_type_select():
 
@@ -194,9 +264,9 @@ def pitch_type_select():
 ], dtype=torch.float32)
 
     
-    atomicTrainer = ClassifyTrainer(class_labels=PITCH_TYPE_LABELS, class_weights=class_weights)
-    for throws in ("R", "L"):
-        atomicTrainer.dojo(PitchTypeSelect(entityId=throws), PitchTypeDataset(condition=f"pitcher.throws = '{throws}'"), patience=-1) 
+    # atomicTrainer = ClassifyTrainer(class_labels=PITCH_TYPE_LABELS, class_weights=class_weights)
+    # for throws in ("R", "L"):
+    #     atomicTrainer.dojo(PitchTypeSelect(entityId=throws), PitchTypeDataset(condition=f"pitcher.throws = '{throws}'"), patience=2) 
 
     for _, row in query_db(PITCHER_QUERY).iterrows():
         pitcherId = row['pitcher_id']
@@ -213,7 +283,16 @@ if __name__ == "__main__":
     torch.manual_seed(42)
     torch.use_deterministic_algorithms(True)
 
-    # num_bases()
-    pitch_location_select()
-        
+    # pitch_type_select()
+    # pitch_velocity_select()
+    # pitch_x_select()
+    # pitch_y_select()
+    
+    # is_swing()
+    # swing_result()
+    # hit_distance()
+    # hit_angle()
+    # is_hit()
+    # is_hr()
+    num_bases()
     

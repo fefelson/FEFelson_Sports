@@ -6,4 +6,6 @@ pytz
 SQLAlchemy==2.0.40
 tzdata
 pyside6
-
+torch
+tqdm
+scikit-learn

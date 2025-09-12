@@ -22,8 +22,8 @@ COUNT_NUMERIC = ["pitch_count", "sequence"]
 COUNT_FEATURES = COUNT_CATEGORICAL+COUNT_NUMERIC
 
 
-PITCH_CATEGORICAL = ["pitch_type_id", "pitch_result_id", "pitch_x", "pitch_y"]
-PITCH_NUMERIC = ["velocity"]
+PITCH_CATEGORICAL = ["pitch_type_id", "pitch_result_id"]
+PITCH_NUMERIC = ["velocity", "pitch_x", "pitch_y"]
 PITCH_FEATURES = PITCH_CATEGORICAL+PITCH_NUMERIC
 
 PITCH_JOINS = [{"name": "games", "inner": True, "join_tables": [{"name": "pitches", "keys": ["game_id",]}] },
@@ -47,6 +47,7 @@ CONTACT_JOINS = [{"name": "games", "inner": True, "join_tables": [{"name": "at_b
 
 
 ######################################################################
+###                         Batters
 ######################################################################
 
 
@@ -58,18 +59,15 @@ class SwingResultDataset(CustomDataset):
     _select_features = COUNT_FEATURES+PITCH_FEATURES+BATTER_FEATURES+PITCHER_FEATURES+["swing_result_id"]
     _categorical_features = COUNT_CATEGORICAL+PITCH_CATEGORICAL+BATTER_CATEGORICAL+PITCHER_CATEGORICAL+["swing_result_id"]
     _numeric_features = COUNT_NUMERIC+PITCH_NUMERIC+BATTER_NUMERIC+PITCHER_NUMERIC
-    _features = {"pitch":PITCH_FEATURES, "count":COUNT_FEATURES, "batter":["batter_age", "batter_exp"], "pitcher": ["pitcher_throws_lefty",]}
-    _label = ["swing_result_id",]
-
-
-######################################################################
-###                         Batters
-######################################################################
-
-
-class BatterSwingDataset(SwingResultDataset):
-
     _featured_id = "batter_id"
+    _features = {"pitch":PITCH_FEATURES, "count":COUNT_FEATURES, "batter":["batter_age", "batter_exp"], "pitcher": ["pitcher_throws_lefty",]}
+    _label = "swing_result_id"
+
+
+
+
+######################################################################
+######################################################################
 
 
 
@@ -83,7 +81,62 @@ class IsSwingDataset(CustomDataset):
     _numeric_features = COUNT_NUMERIC+PITCH_NUMERIC+BATTER_NUMERIC+PITCHER_NUMERIC
     _featured_id = "batter_id"
     _features = {"pitch":PITCH_FEATURES, "count":COUNT_FEATURES, "batter":["batter_age", "batter_exp"], "pitcher": ["pitcher_throws_lefty",]}
-    _label = ["is_swing",]
+    _label = "is_swing"
+
+
+######################################################################
+######################################################################
+
+
+
+class HitStyleDataset(CustomDataset):
+
+    _main_table = "pitches"
+    _main_id = "pitch_id"
+    _joins = [{"name": "at_bats", "inner": False, "join_tables": [{"name": "pitches", "keys": ["play_num",]}, {"name": "pitches", "keys": ["game_id",]}] },] + PITCH_JOINS
+    _select_features = COUNT_FEATURES+PITCH_FEATURES+BATTER_FEATURES+PITCHER_FEATURES+HIT_FEATURES
+    _categorical_features = COUNT_CATEGORICAL+PITCH_CATEGORICAL+BATTER_CATEGORICAL+PITCHER_CATEGORICAL+HIT_CATEGORICAL
+    _numeric_features = COUNT_NUMERIC+PITCH_NUMERIC+BATTER_NUMERIC+PITCHER_NUMERIC+HIT_NUMERIC
+    _featured_id = "p.batter_id"
+    _features = {"pitch":PITCH_FEATURES, "count":COUNT_FEATURES, "batter":["batter_age", "batter_exp"], "pitcher": ["pitcher_throws_lefty",]}
+    _label = "hit_style"
+
+
+
+######################################################################
+######################################################################
+
+
+
+class HitDistanceDataset(CustomDataset):
+
+    _main_table = "pitches"
+    _main_id = "pitch_id"
+    _joins = [{"name": "at_bats", "inner": False, "join_tables": [{"name": "pitches", "keys": ["play_num",]}, {"name": "pitches", "keys": ["game_id",]}] },] + PITCH_JOINS
+    _select_features = COUNT_FEATURES+PITCH_FEATURES+BATTER_FEATURES+PITCHER_FEATURES+HIT_FEATURES
+    _categorical_features = COUNT_CATEGORICAL+PITCH_CATEGORICAL+BATTER_CATEGORICAL+PITCHER_CATEGORICAL+HIT_CATEGORICAL
+    _numeric_features = COUNT_NUMERIC+PITCH_NUMERIC+BATTER_NUMERIC+PITCHER_NUMERIC+HIT_NUMERIC
+    _featured_id = "p.batter_id"
+    _features = {"pitch":PITCH_FEATURES, "count":COUNT_FEATURES, "batter":["batter_age", "batter_exp"], "pitcher": ["pitcher_throws_lefty",]}
+    _label = "hit_distance"
+
+
+######################################################################
+######################################################################
+
+
+
+class HitAngleDataset(CustomDataset):
+
+    _main_table = "pitches"
+    _main_id = "pitch_id"
+    _joins = [{"name": "at_bats", "inner": False, "join_tables": [{"name": "pitches", "keys": ["play_num",]}, {"name": "pitches", "keys": ["game_id",]}] },] + PITCH_JOINS
+    _select_features = COUNT_FEATURES+PITCH_FEATURES+BATTER_FEATURES+PITCHER_FEATURES+HIT_FEATURES
+    _categorical_features = COUNT_CATEGORICAL+PITCH_CATEGORICAL+BATTER_CATEGORICAL+PITCHER_CATEGORICAL+HIT_CATEGORICAL
+    _numeric_features = COUNT_NUMERIC+PITCH_NUMERIC+BATTER_NUMERIC+PITCHER_NUMERIC+HIT_NUMERIC
+    _featured_id = "p.batter_id"
+    _features = {"pitch":PITCH_FEATURES, "count":COUNT_FEATURES, "batter":["batter_age", "batter_exp"], "pitcher": ["pitcher_throws_lefty",]}
+    _label = "hit_angle"
 
 
 
@@ -108,19 +161,25 @@ class PitchTypeDataset(CustomDataset):
     _numeric_features = COUNT_NUMERIC+PITCH_NUMERIC+BATTER_NUMERIC+PITCHER_NUMERIC
     _featured_id = "pitcher_id"
     _features = {"count":COUNT_FEATURES, "batter":["batter_age", "batter_exp", "batter_faces_break"], "pitcher": ["pitcher_age", "pitcher_exp", "pitcher_throws_lefty",]}
-    _label = ["pitch_type_id",]
+    _label = "pitch_type_id"
 
 
-class PitchLocationDataset(PitchTypeDataset):
+class PitchXDataset(PitchTypeDataset):
 
     _features = {"count":COUNT_FEATURES, "batter":["batter_age", "batter_exp", "batter_faces_break"], "pitcher": ["pitcher_age", "pitcher_exp", "pitcher_throws_lefty",], "pitch":["pitch_type_id",]}
-    _label = ["pitch_x", "pitch_y"]
+    _label = "pitch_x"
+
+
+class PitchYDataset(PitchTypeDataset):
+
+    _features = {"count":COUNT_FEATURES, "batter":["batter_age", "batter_exp", "batter_faces_break"], "pitcher": ["pitcher_age", "pitcher_exp", "pitcher_throws_lefty",], "pitch":["pitch_type_id",]}
+    _label = "pitch_y"
 
 
 class PitchVelocityDataset(PitchTypeDataset):
 
     _features = {"count":COUNT_FEATURES, "batter":["batter_age", "batter_exp", "batter_faces_break"], "pitcher": ["pitcher_age", "pitcher_exp", "pitcher_throws_lefty",], "pitch":["pitch_type_id", "pitch_x", "pitch_y"]}
-    _label = ["velocity",]
+    _label = "velocity"
 
 
 
@@ -144,7 +203,7 @@ class IsHitDataset(CustomDataset):
     _numeric_features = HIT_NUMERIC
     _featured_id = "stadium_id"
     _features = {"hit":HIT_FEATURES}
-    _label = ["is_hit",]
+    _label = "is_hit"
 
 
 
@@ -162,7 +221,7 @@ class IsHRDataset(CustomDataset):
     _numeric_features = HIT_NUMERIC
     _featured_id = "stadium_id"
     _features = {"hit":HIT_FEATURES}
-    _label = ["is_hr",]
+    _label = "is_hr"
 
 
 
@@ -182,4 +241,4 @@ class NumBasesIfHitDataset(CustomDataset):
     _numeric_features = HIT_NUMERIC
     _featured_id = "stadium_id"
     _features = {"hit":HIT_FEATURES}
-    _label = ["num_bases",]
+    _label = "num_bases"

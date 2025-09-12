@@ -1,11 +1,7 @@
-from .basketball_team_stats_calculator import BasketballTeamStatsCalculator
+from .mlb_analytics import MLBAnalytics
+from .nba_analytics import NBAAnalytics
+from .ncaab_analytics import NCAABAnalytics
+from .ncaaf_analytics import NCAAFAnalytics
+from .nfl_analytics import NFLAnalytics
 
-
-
-def get_stats_calculator(leagueId):
-    calculator = None
-    if leagueId == "NBA":
-        calculator = BasketballTeamStatsCalculator(leagueId)
-    elif leagueId == "NCAAB":
-        calculator = BasketballTeamStatsCalculator(leagueId)
-    return calculator
+__all__ = ["MLBAnalytics", "NBAAnalytics", "NCAABAnalytics", "NCAAFAnalytics", "NFLAnalytics"]

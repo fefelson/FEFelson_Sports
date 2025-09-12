@@ -1,7 +1,8 @@
 # venv and installed tools
 logs/
 venv/
-leagues/
+team_logos/
+matchups/
 
 # compiled C objects
 *.o

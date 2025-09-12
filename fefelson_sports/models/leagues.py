@@ -1,105 +1,129 @@
-from typing import List
-
 from .boxscores import Boxscore
 from .matchups import Matchup
-from .players import Player
+from .schedules import DailySchedule, WeeklySchedule
 from .scoreboards import Scoreboard
-from ..capabilities import Processable, Updateable
+
+from ..analytics import MLBAnalytics, NBAAnalytics, NCAABAnalytics, NCAAFAnalytics, NFLAnalytics
+from ..database.agents import MLBAlchemy, NBAAlchemy, NCAABAlchemy, NCAAFAlchemy, NFLAlchemy
+from ..database.orms.database import get_db_session
 from ..utils.logging_manager import get_logger
 
+# for debugging
+# from pprint import pprint 
 
 ################################################################################
 ################################################################################
 
+ 
+class League:
 
-class League(Processable, Updateable):
 
-    _leagueId = None
-    _dbAgent = None
-    _leagueConfig = None
-    _analytics = None
-    _schedule = None
+    def __init__(self, leagueId, dbAgent, schedule, analytics):
+        
+        self.leagueId = leagueId 
+
+        self.analytics = analytics()
+        self.boxscore = Boxscore(leagueId) 
+        self.dbAgent = dbAgent()
+        self.matchup = Matchup(leagueId) 
+        self.schedule = schedule(leagueId)
+        self.scoreboard = Scoreboard(leagueId)
+
+
+
+    def process_game_date(self, gameDate: str):
+        get_logger().info(f"{self.leagueId} processing {gameDate}")
+    
+        with get_db_session() as session:
+            for game in self.scoreboard.process(gameDate).values():
+                if game["status"] == "pregame":
+                    self.matchup.process(game, session)
+                elif game["status"] == "final":
+                    bScore = self.boxscore.process(game, session)
+                    if bScore:
+                        self.dbAgent.insert_boxscore(bScore, session)
+        
+                            
+    def update(self):
+        if self.schedule.is_active():
+            if not self.schedule.is_up_to_date():
+                get_logger().info(f"Updating {self.leagueId}") 
+                for gameDate in self.schedule.get_back_dates():
+                    self.process_game_date(gameDate)
+                    self.schedule.current_until(gameDate)
+                    get_logger().info(f"{self.leagueId} current up until {gameDate}")
+
+                self.analytics.scheduled_analytics()    
+
+            for gameDate in self.schedule.get_future_dates(2):
+                self.process_game_date(gameDate)
+                get_logger().debug(f"{self.leagueId} matchups processed for {gameDate}")
+            
+            self.matchup.clean_files()
+
+            get_logger().debug(f"{self.leagueId} is up to date")
+
+
+####################################################################
+####################################################################
+
+
+class MLB(League):
+
 
     def __init__(self):
-        super().__init__()
-        
-        self.boxscore = Boxscore(self._leagueId, self._dbAgent)
-        self.matchup = Matchup(self._leagueId)
-        self.player = Player(self._leagueId, self._dbAgent)
-        self.scoreboard = Scoreboard(self._leagueId)
-        # self.team = Team(self._leagueId)
-
-        self.logger = get_logger()
+        super().__init__("MLB", MLBAlchemy, DailySchedule, MLBAnalytics)
 
 
-    def get_current_season(self) -> int:
-        return self._leagueConfig.get("current_season")
+
+####################################################################
+####################################################################
 
 
-    def is_active(self) -> bool:
-        return self._schedule.is_active(self._leagueConfig)
+class NBA(League):
 
 
-    def analyze(self) -> None:
-        if self.is_active():
-            self.logger.info(f"{self._leagueId} Analytics")
-
-            season = self._leagueConfig.get("current_season")
-            teamStats = self._analytics.fetch_team_stats(season)
-            teamGaming = self._analytics.fetch_team_gaming(season)
-            teamStatModels = self._analytics.team_averages_adjusted(teamStats)
-            teamGamingModels = self._analytics.team_gaming_averages(teamGaming)
-
-            self._analytics.truncate_tables()
-            for models in (teamStatModels, teamGamingModels):
-                self._analytics.store_models(models)
+    def __init__(self):
+        super().__init__("NBA", NBAAlchemy, DailySchedule, NBAAnalytics)
 
 
-    def get_matchups(self, gameDate: str) -> List[dict]:
-        return [self.matchup.process(game) for game in self.scoreboard.process(gameDate) if game["statusType"] ==  "pregame" and game["gameType"] not in ("preseason", "spring training")]                    
+
+####################################################################
+####################################################################
 
 
-    def needs_update(self):
-        print(self.is_active())
-        print(self._schedule.is_uptodate(self._leagueConfig))
-        return self.is_active() and self._schedule.is_uptodate(self._leagueConfig)
+class NCAAB(League):
 
 
-    def process(self, gameDate):
-        self.logger.info(f"{self._leagueId} processing {gameDate}")
-        
-        for game in self.scoreboard.process(gameDate).values():
-            if game["yahoo"]["statusType"] == "final":
-                boxscore = self.boxscore.process(game)
+    def __init__(self):
+        super().__init__("NCAAB", NCAABAlchemy, DailySchedule, NCAABAnalytics)
 
-                # from pprint import pprint 
-                # pprint(boxscore)
-                # raise 
-                
-                if boxscore:
-                    
-                    for player in [self.player.process(player["player_id"]) for player in boxscore["yahooBox"]["players"]]:
-                        if player is not None:
-                            self.player.save_to_db(player)
 
-                    self.boxscore.save_to_db(boxscore)
-            
-            elif game["yahoo"]["statusType"] == "pregame":
-                self.matchup.process(game)
-                    
 
-    def update(self):
-        if self.needs_update():
-            self.logger.info(f"Updating {self._leagueId}")
-            for gameDate in self._schedule.process(self._leagueConfig):
-                self.process(gameDate)
-                self._leagueConfig.set("last_update", gameDate)
-                self._leagueConfig._write_config()
-                self.logger.info(f"{self._leagueId} current up until {gameDate}")
-            #self.analyze()
+####################################################################
+####################################################################
 
-            for gameDate in self._schedule.process(self._leagueConfig, nGD=2):
-                self.process(gameDate)
-                self.logger.debug(f"{self._leagueId} matchups processed for {gameDate}")
 
-        self.logger.debug(f"{self._leagueId} is up to date")
+class NCAAF(League):
+
+
+    def __init__(self):
+        super().__init__("NCAAF", NCAAFAlchemy, WeeklySchedule, NCAAFAnalytics)
+
+
+
+####################################################################
+####################################################################
+
+
+class NFL(League):
+
+
+    def __init__(self):
+        super().__init__("NFL", NFLAlchemy, WeeklySchedule, NFLAnalytics)
+
+
+
+####################################################################
+####################################################################
+

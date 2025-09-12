@@ -51,7 +51,6 @@ class AtomicTrainer:
         all_preds, all_labels, all_probs = [], [], []
         for features, labels in tqdm(data_loader, desc=f"{dsc} Model"):
         # for features, labels in data_loader:
-            
             # Only during Training
             if optimizer is not None:
                 optimizer.zero_grad() 
@@ -107,7 +106,7 @@ class AtomicTrainer:
         raise NotImplementedError
 
 
-    def dojo(self, model, dataset, *, epochs: int = 50, patience: int = 3):
+    def dojo(self, model, dataset, *, epochs: int = 50, patience: int = 2):
         """
         Train, validate, and test with early stopping.
 
@@ -119,6 +118,7 @@ class AtomicTrainer:
         """
         
         optimizer = self._optimizer(model.parameters(), lr=0.001)
+        best_acc = 0
         best_val_loss = float("inf")
         patience_counter = 0
 
@@ -133,7 +133,6 @@ class AtomicTrainer:
             val_metrics = self._compute_metrics(val_loss, val_labels, val_probs, val_preds, len(dataset))
             
             # # # Print metrics
-            
             self._print_metrics(train_metrics, "Training")
             self._print_metrics(val_metrics, "Validating")
 
@@ -142,21 +141,21 @@ class AtomicTrainer:
                 best_val_loss = val_loss
                 patience_counter = 0
 
-                print_confusion_matrix(self.class_labels, val_labels, val_preds, epoch)
+                #print_confusion_matrix(self.class_labels, val_labels, val_preds, epoch)
                 model._save(val_metrics)
             else:
                 patience_counter += 1
-
             # Early stopping
             if patience_counter > patience:
                 print(f"Early stopping triggered after {epoch+1} epochs")
                 break
 
+        model._load()
         test_loss, test_labels, test_probs, test_preds = self._test_model(model, test_data)
         test_metrics = self._compute_metrics(test_loss, test_labels, test_probs, test_preds, len(dataset))
 
         self._print_metrics(test_metrics, "Testing")
-        # print_confusion_matrix(self.class_labels, test_labels, test_preds)
+        print_confusion_matrix(self.class_labels, test_labels, test_preds)
     
 
         
@@ -189,6 +188,8 @@ class BinaryTrainer(AtomicTrainer):
         """
         Compute and validate metrics for predictions.
         """
+        all_probs = all_probs.flatten()
+        all_preds = all_preds.flatten()
         # Compute existing metrics
         return {
             "loss": total_loss / dataset_length if dataset_length > 0 else float('inf'),
@@ -316,7 +317,6 @@ class RegressionTrainer(AtomicTrainer):
         self.criterion = self._loss_function()
 
 
-
     def _compute_metrics(self, total_loss: float, all_labels: np.ndarray, all_probs: np.ndarray, 
                             all_preds: np.ndarray, dataset_length: int) -> dict:
         """
@@ -325,18 +325,18 @@ class RegressionTrainer(AtomicTrainer):
         # Compute existing metrics
         return {
             "loss": total_loss / dataset_length if dataset_length > 0 else float('inf'),
-            "a*": np.sum(all_preds == all_labels) / len(all_labels) if len(all_labels) > 0 else 0.0,
-            "f1": f1_score(all_labels, all_preds, average='macro'),
-            "brier": compute_brier_score(all_probs, all_labels),
-            "ece": compute_ece(all_probs, all_labels),
-            "pr_auc": compute_multiclass_pr_auc(all_probs, all_labels),
-            "roc_auc": compute_multiclass_roc_auc(all_probs, all_labels),
-            "sharp": float(np.mean(all_probs[(all_preds == all_labels)]))
+            "a*": 0,
+            "f1": 0,
+            "brier": 0,
+            "ece": 0,
+            "pr_auc": 0,
+            "roc_auc": 0,
+            "sharp": 0
         }
         
 
     def _handle_loss_computation(self, outputs, labels):
-        loss =  self.criterion(outputs, labels)
+        loss =  self.criterion(outputs.squeeze(-1), labels)
         return loss, labels 
 
 

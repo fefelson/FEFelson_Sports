@@ -1,11 +1,11 @@
-import math
-import pandas as pd
 import re
-from typing import Any, Dict, List
+from typing import List
 
 from .yahoo_normalizer import YahooNormalizer
-from ....sports.normalizers import BaseballNormalizer
+from ...sport_normalizers import BaseballNormalizer
 
+# for debugging
+# from pprint import pprint
 
 #############################################################################################
 #############################################################################################
@@ -103,10 +103,27 @@ class YahooMLBNormalizer(BaseballNormalizer, YahooNormalizer):
     """Normalizer for Yahoo Baseball data (MLB)."""
 
     def __init__(self, leagueId: str):
-        super().__init__("MLB", "sport_baseball")
+        super().__init__("MLB")
 
 
-    def _set_atbats(self, webData):
+    def _starting_lineup(self, gameData):
+        if not gameData.get("lineups"):
+            return None 
+
+        lineups = {}
+        for a_h in ("away", "home"):
+            lineups[a_h] = {}
+            for letter in ("B", "P"):
+                lineups[a_h][letter] = []
+                for player in sorted(gameData["lineups"][f"{a_h}_lineup"][letter].values(), key=lambda x: int(x["order"])):
+                    lineups[a_h][letter].append((player["order"], player["player_id"], player["position"]))
+
+        return lineups
+        
+
+
+
+    def _set_atbats(self, webData: dict) -> List[dict]:
         gameData = webData["gameData"]
         gameId = gameData["gameid"]
 
@@ -127,7 +144,7 @@ class YahooMLBNormalizer(BaseballNormalizer, YahooNormalizer):
                         "game_id": gameId,
                         "team_id": batterTeam[row["batter"]],
                         "opp_id": pitcherTeam[row["pitcher"]],
-                        "play_num": int((int(row['play_num']) - 1)/100),
+                        "play_num": str((int(row['play_num']) - 1)/100),
                         "pitcher_id": f"mlb.p.{row['pitcher']}",
                         "batter_id": f"mlb.p.{row['batter']}",
                         "at_bat_type_id": result,
@@ -143,7 +160,7 @@ class YahooMLBNormalizer(BaseballNormalizer, YahooNormalizer):
         return atBats
 
 
-    def _set_pitches(self, webData):
+    def _set_pitches(self, webData: dict) -> List[dict]:
         gameData = webData["gameData"]
         gameId = gameData["gameid"]
 
@@ -201,7 +218,9 @@ class YahooMLBNormalizer(BaseballNormalizer, YahooNormalizer):
 
 
 
-    def _set_batter_stats(self, webData):
+    def _set_batter_stats(self, webData: dict) -> List[dict]:
+        # pprint(webData["statsData"])
+        # raise
         gameData = webData["gameData"]
         gameId = gameData["gameid"]
         teamIds = {"away": gameData["away_team_id"], "home": gameData["home_team_id"]}
@@ -217,13 +236,18 @@ class YahooMLBNormalizer(BaseballNormalizer, YahooNormalizer):
             if raw_player_data :
                 try:
                     playerStats.append({
-                        "batter_id": playerId,
+                        "player_id": playerId,
                         "game_id": gameId,
                         "team_id": teamId,
                         "opp_id": oppId,
+                        "ab": raw_player_data["mlb.stat_type.2"],
+                        "bb": raw_player_data["mlb.stat_type.14"],
                         "r": raw_player_data["mlb.stat_type.3"],
+                        "h": raw_player_data["mlb.stat_type.4"],
+                        "hr": raw_player_data["mlb.stat_type.7"],
+                        "rbi": raw_player_data["mlb.stat_type.8"],
                         "sb": raw_player_data["mlb.stat_type.12"],
-                        "rbi": raw_player_data["mlb.stat_type.8"]
+                        "so": raw_player_data["mlb.stat_type.17"]
                     })                 
                 except (IndexError, KeyError):
                     pass
@@ -232,7 +256,7 @@ class YahooMLBNormalizer(BaseballNormalizer, YahooNormalizer):
  
 
 
-    def _set_pitcher_stats(self, webData):
+    def _set_pitcher_stats(self, webData: dict) -> List[dict]:
         gameData = webData["gameData"]
         gameId = gameData["gameid"]
         teamIds = {"away": gameData["away_team_id"], "home": gameData["home_team_id"]}
@@ -248,12 +272,16 @@ class YahooMLBNormalizer(BaseballNormalizer, YahooNormalizer):
             if raw_player_data :
                 try:
                     playerStats.append({
-                        "pitcher_id": playerId,
+                        "player_id": playerId,
                         "game_id": gameId,
                         "team_id": teamId,
                         "opp_id": oppId,
                         "full_ip": raw_player_data["mlb.stat_type.139"].split(".")[0],
                         "partial_ip": raw_player_data["mlb.stat_type.139"].split(".")[1],
+                        "bba": raw_player_data["mlb.stat_type.118"],
+                        "ha": raw_player_data["mlb.stat_type.111"],
+                        "k": raw_player_data["mlb.stat_type.121"],
+                        "hra": raw_player_data["mlb.stat_type.115"],
                         "ra": raw_player_data["mlb.stat_type.113"],
                         "er": raw_player_data["mlb.stat_type.114"],
                         "w": raw_player_data["mlb.stat_type.101"],
@@ -268,7 +296,7 @@ class YahooMLBNormalizer(BaseballNormalizer, YahooNormalizer):
 
 
 
-    def _set_batting_order(self, webData):
+    def _set_batting_order(self, webData: dict) -> List[dict]:
         gameData = webData["gameData"]
         gameId = gameData["gameid"]
         teamIds = {"away": gameData["away_team_id"], "home": gameData["home_team_id"]}
@@ -292,7 +320,7 @@ class YahooMLBNormalizer(BaseballNormalizer, YahooNormalizer):
         return battingOrder
 
 
-    def _set_bullpen(self, webData):
+    def _set_bullpen(self, webData: dict) -> List[dict]:
         gameData = webData["gameData"]
         gameId = gameData["gameid"]
         teamIds = {"away": gameData["away_team_id"], "home": gameData["home_team_id"]}
@@ -314,7 +342,7 @@ class YahooMLBNormalizer(BaseballNormalizer, YahooNormalizer):
         return pitchingOrder
 
 
-    def _set_lineups(self, webData):
+    def _set_lineups(self, webData: dict) -> dict:
         lineups = {}
         try:
             lineups["batting"] = self._set_batting_order(webData)
@@ -325,22 +353,21 @@ class YahooMLBNormalizer(BaseballNormalizer, YahooNormalizer):
         return lineups
 
 
-    def _set_player_stats(self, webData):
-        playerStats = [] 
-        # [playerStats.append(batRecord) for batRecord in self._set_batter_stats(webData)] 
-        # [playerStats.append(pitchRecord) for pitchRecord in self._set_pitcher_stats(webData)] 
+    def _set_player_stats(self, webData: dict) -> List:
+        playerStats = {
+            "batting_stats": self._set_batter_stats(webData),
+            "pitching_stats": self._set_pitcher_stats(webData)
+        }
         return playerStats
 
 
-    def _set_misc(self, webData):
+    def _set_misc(self, webData: dict) -> dict:
         misc = {"at_bats": self._set_atbats(webData),
-                "pitches": self._set_pitches(webData),
-                "batting_stats": self._set_batter_stats(webData),
-                "pitching_stats": self._set_pitcher_stats(webData)}
+                "pitches": self._set_pitches(webData)}
         return misc
 
 
-    def _set_team_stats(self, data: Dict[str, Any]) -> List["BaseballTeamStat"]:
+    def _set_team_stats(self, data: dict) -> List[dict]:
         gameData = data["gameData"]
         gameId = gameData["gameid"]
         teamIds = {"away": gameData["away_team_id"], "home": gameData["home_team_id"]}
@@ -349,30 +376,29 @@ class YahooMLBNormalizer(BaseballNormalizer, YahooNormalizer):
         teamStats = []
         try:
             for a_h in ("away", "home"):
-                raw_stat_data = data["StatsStore"]["teamStatsByGameId"][gameId][teamIds[a_h]]['mlb.stat_variation.2']           
+                raw_stat_data = data["statsData"]["teamStatsByGameId"][gameId][teamIds[a_h]]['mlb.stat_variation.2']           
 
-                newTeamStats = self._TeamStats(
-                    game_id=gameId,
-                    team_id=teamIds[a_h],
-                    opp_id=oppIds[a_h],
-                    ab = raw_stat_data["mlb.stat_type.406"],
-                    bb = raw_stat_data["mlb.stat_type.415"],
-                    r = raw_stat_data["mlb.stat_type.402"],
-                    h = raw_stat_data["mlb.stat_type.403"],
-                    hr = raw_stat_data["mlb.stat_type.404"],
-                    rbi = raw_stat_data["mlb.stat_type.405"],
-                    sb = raw_stat_data["mlb.stat_type.409"],
-                    lob = raw_stat_data["mlb.stat_type.416"],
-                    full_ip = raw_stat_data["mlb.stat_type.512"].split(".")[0],
-                    partial_ip = raw_stat_data["mlb.stat_type.512"].split(".")[1],
-                    bba = raw_stat_data["mlb.stat_type.503"],
-                    ha = raw_stat_data["mlb.stat_type.502"],
-                    ra = raw_stat_data["mlb.stat_type.505"],
-                    hra = raw_stat_data["mlb.stat_type.507"],
-                    er = raw_stat_data["mlb.stat_type.506"],
-                    k = raw_stat_data["mlb.stat_type.504"]
-                )
-                teamStats.append(newTeamStats)
+                teamStats.append({
+                    "game_id": gameId,
+                    "team_id": teamIds[a_h],
+                    "opp_id": oppIds[a_h],
+                    "ab": raw_stat_data["mlb.stat_type.406"],
+                    "bb": raw_stat_data["mlb.stat_type.415"],
+                    "r": raw_stat_data["mlb.stat_type.402"],
+                    "h": raw_stat_data["mlb.stat_type.403"],
+                    "hr": raw_stat_data["mlb.stat_type.404"],
+                    "rbi": raw_stat_data["mlb.stat_type.405"],
+                    "sb": raw_stat_data["mlb.stat_type.409"],
+                    "lob": raw_stat_data["mlb.stat_type.416"],
+                    "full_ip": raw_stat_data["mlb.stat_type.512"].split(".")[0],
+                    "partial_ip": raw_stat_data["mlb.stat_type.512"].split(".")[1],
+                    "bba": raw_stat_data["mlb.stat_type.503"],
+                    "ha": raw_stat_data["mlb.stat_type.502"],
+                    "ra": raw_stat_data["mlb.stat_type.505"],
+                    "hra": raw_stat_data["mlb.stat_type.507"],
+                    "er": raw_stat_data["mlb.stat_type.506"],
+                    "k": raw_stat_data["mlb.stat_type.504"]
+                })
         except KeyError:
             pass
         return teamStats  
