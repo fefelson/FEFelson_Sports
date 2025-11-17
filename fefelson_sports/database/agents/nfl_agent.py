@@ -20,20 +20,35 @@ class NFLAlchemy(SQLAlchemyDatabaseAgent):
     def _insert_league_specific_data(self, boxscore: dict, mapping: dict, session: Session):
 
         # pprint(boxscore)
+        
 
         for a_h in range(2):
 
             # Set Team Stats 
-            
             yahooTS = boxscore["yahoo"]["teamStats"][a_h]
-            espnTS = boxscore["espn"]["teamStats"][a_h]
+
+            if boxscore["espn"]["teamStats"]:
+                espnTS = boxscore["espn"]["teamStats"][a_h]
+            else:
+                espnTS = None
+
+            # pprint(yahooTS)
+            # print("\n\n\n")
+            # pprint(espnTS)
             
             for label in ("game_id", "team_id", "opp_id"):
                 yahooTS[label] = mapping[yahooTS[label]]
-            for label in ("drives", "rz_att", "rz_conv"):
-                yahooTS[label] = espnTS[label]
 
-            self.teamsStatStore.insert(session, yahooTS)
+            # for label in ("opp_fum_rec", "int_forced", "sack_forced"):
+            #     yahooTS.pop(label)
+            
+            if espnTS:
+                for label in ("yards", "pass_yards", "rush_yards", "pass_plays", "rush_plays", "drives", "rz_att", "rz_conv", 'int_thrown', 
+                                'fum_lost', 'times_sacked', 'sack_yds_lost', 'penalties', 'penalty_yards', 
+                                'third_att', 'third_conv', 'fourth_att', 'fourth_conv' ):
+                    yahooTS[label] = espnTS[label]
+
+                self.teamsStatStore.insert(session, yahooTS)
 
         # Set Player Stats
 
@@ -41,6 +56,7 @@ class NFLAlchemy(SQLAlchemyDatabaseAgent):
                                 ("rushing", self.playerStatStore.insert_rushing), 
                                 ("receiving", self.playerStatStore.insert_receiving),
                                 ("fumbles", self.playerStatStore.insert_fumbles),
+                                ("kicking", self.playerStatStore.insert_kicking),
                                 ("punting", self.playerStatStore.insert_punting),
                                 ("returns", self.playerStatStore.insert_returns),
                                 ("defense", self.playerStatStore.insert_defense)):
@@ -49,14 +65,16 @@ class NFLAlchemy(SQLAlchemyDatabaseAgent):
                     yahooPS[label] = mapping[yahooPS[label]]
         
                 if subset == "defense":
-                    for espnPS in boxscore["espn"]["playerStats"][subset]:
-                        try:
-                            if mapping[espnPS["player_id"]] == yahooPS["player_id"]:
-                                yahooPS["qb_hits"] = espnPS["qb_hits"]
-                                break
-                        except KeyError:
-                            pass
-                        yahooPS["qb_hits"] = 0
+                    yahooPS["qb_hits"] = 0
+                    if boxscore["espn"]["playerStats"]:
+                        for espnPS in boxscore["espn"]["playerStats"][subset]:
+                            try:
+                                if mapping[espnPS["player_id"]] == yahooPS["player_id"]:
+                                    yahooPS["qb_hits"] = espnPS["qb_hits"]
+                                    break
+                            except KeyError:
+                                pass
+                            
                 
                 subFunc(session, yahooPS)
     
@@ -74,3 +92,5 @@ class NFLAlchemy(SQLAlchemyDatabaseAgent):
                         yahooPS[label] = mapping[yahooPS[label]]
                 
                 subFunc(session, yahooPS)
+
+    

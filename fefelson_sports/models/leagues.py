@@ -9,7 +9,7 @@ from ..database.orms.database import get_db_session
 from ..utils.logging_manager import get_logger
 
 # for debugging
-# from pprint import pprint 
+from pprint import pprint 
 
 ################################################################################
 ################################################################################
@@ -62,6 +62,7 @@ class League:
             self.matchup.clean_files()
 
             get_logger().debug(f"{self.leagueId} is up to date")
+
 
 
 ####################################################################

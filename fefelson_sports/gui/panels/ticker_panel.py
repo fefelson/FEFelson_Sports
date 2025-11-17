@@ -1,3 +1,4 @@
+from datetime import date, datetime, timedelta
 from PySide6.QtWidgets import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QMainWindow, QApplication
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
@@ -12,10 +13,20 @@ class ThumbPanel(QWidget):
         super().__init__(parent)
 
         moneyFont = QFont("Times", 24, QFont.Bold)
+        timeFont = QFont("Times", 15, QFont.Bold)
+
         moneyLayout = QHBoxLayout()
 
+        self.gameTime = QLabel()
+        self.gameTime.setFont(timeFont)
+        self.gameTime.setAlignment(Qt.AlignCenter)
+        
         self.teams = {}
         self.money = {}
+
+        self.spread = QLabel("N/A")
+        self.spread.setAlignment(Qt.AlignCenter)
+        self.spread.setFont(moneyFont)
 
         for a_h in ("away", "home"):
             orient = "left" if a_h == "away" else "right"
@@ -26,11 +37,16 @@ class ThumbPanel(QWidget):
             self.money[a_h].setFont(moneyFont)
 
             moneyLayout.addWidget(self.money[a_h])
+           
                
         mainLayout = QVBoxLayout()
+        mainLayout.addWidget(self.gameTime)
         mainLayout.addWidget(self.teams['away'], 1)
         mainLayout.addLayout(moneyLayout)
         mainLayout.addWidget(self.teams['home'], 1)
+        mainLayout.addWidget(self.spread)
+
+
 
         self.setLayout(mainLayout)
 
@@ -41,7 +57,16 @@ class ThumbPanel(QWidget):
 
 
     def set_panel(self, game):
+
         self.title = game['title']
+        gT = "%a %b %d\n%I:%M%p" if game["gameTime"].date() - date.today() >= timedelta(days=7) else "%a %I:%M%p"
+
+        self.gameTime.setText(game["gameTime"].strftime(gT))
+
+        try:
+            self.spread.setText(game['odds'][-1]['home_spread'])
+        except:
+            self.spread.setText('N/A')
 
         for a_h in ("away", "home"):
 
@@ -52,7 +77,10 @@ class ThumbPanel(QWidget):
                 money = "N/A"
 
             self.money[a_h].setText(money)
-            self.teams[a_h].set_team(game["teams"][a_h])
+            try:
+                self.teams[a_h].set_team(game["teams"][a_h])
+            except TypeError as e:
+                print(e)
 
 
 

@@ -87,6 +87,7 @@ class JSONAgent(FileAgent):
 
     @staticmethod
     def read(filePath: str) -> dict:
+        # print(filePath)
         with open(filePath, "r") as fileIn:
             return json.load(fileIn)
         

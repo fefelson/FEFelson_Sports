@@ -5,7 +5,7 @@ from .espn_normalizer import ESPNNormalizer
 from ...sport_normalizers import FootballNormalizer
 
 # for debugging
-# from pprint import pprint 
+from pprint import pprint 
 
 #############################################################################################
 #############################################################################################
@@ -41,7 +41,7 @@ class ESPNFootballNormalizer(ESPNNormalizer, FootballNormalizer):
 
 
     def _set_team_stats(self, data: dict) -> List[dict]:
-        # pprint(data)
+        # pprint(data["matchData"]["tmStats"])
         # raise
         teamStats = []
 
@@ -57,6 +57,7 @@ class ESPNFootballNormalizer(ESPNNormalizer, FootballNormalizer):
 
                 try:
                     # NFL stats not in NCAAF espn
+                    passPlays = int(teamData[a_h]['s']['totalOffensivePlays']['d']) - int(teamData[a_h]['s']['rushingAttempts']['d'])
                     drives=teamData[a_h]['s']['totalDrives']['d']
                     timesSacked=teamData[a_h]['s']['sacksYardsLost']['d'].split("-")[0],
                     sackYdsLost=teamData[a_h]['s']['sacksYardsLost']['d'].split("-")[1]
@@ -66,6 +67,7 @@ class ESPNFootballNormalizer(ESPNNormalizer, FootballNormalizer):
                 except KeyError:
                     drives=None; timesSacked=None; sackYdsLost=None; rzAtt=None;
                     rzConv=None; tdDefST=None
+                    passPlays=int(teamData[a_h]['s']['completionAttempts']['d'].split("/")[-1])
 
                 teamStats.append({
                     "game_id": gameId,
@@ -74,7 +76,7 @@ class ESPNFootballNormalizer(ESPNNormalizer, FootballNormalizer):
                     "pts": data["matchData"]['gmStrp']['tms'][0 if a_h == 'home' else 1]["score"],
                     "drives": drives,
                     "yards": teamData[a_h]['s']['totalYards']['d'],
-                    "pass_plays": teamData[a_h]['s']['completionAttempts']['d'].split("/")[1],
+                    "pass_plays": passPlays,
                     "pass_yards": teamData[a_h]['s']['netPassingYards']['d'],
                     "rush_plays": teamData[a_h]['s']['rushingAttempts']['d'],
                     "rush_yards": teamData[a_h]['s']['rushingYards']['d'],

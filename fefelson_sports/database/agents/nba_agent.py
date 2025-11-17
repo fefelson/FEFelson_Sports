@@ -18,9 +18,7 @@ class NBAAlchemy(SQLAlchemyDatabaseAgent):
 
     def _insert_league_specific_data(self, boxscore: dict, mapping: dict, session: Session):
 
-        # pprint(boxscore)
-        # raise
-        
+        # pprint(boxscore)        
         for a_h in range(2):
             
             yahooTS = boxscore["yahoo"]["teamStats"][a_h]
@@ -39,10 +37,14 @@ class NBAAlchemy(SQLAlchemyDatabaseAgent):
             self.playerStatStore.insert(session, yahooPS)
 
         for yahooShot in boxscore["yahoo"]["misc"]:
-            for label in ("game_id", "team_id", "opp_id", "player_id"):
-                yahooShot[label] = mapping[yahooShot[label]]
-            if yahooShot["assist_id"]:
-                yahooShot["assist_id"] = mapping[yahooShot["assist_id"]]
+            try:
+                for label in ("game_id", "team_id", "opp_id", "player_id"):
+                    yahooShot[label] = mapping[yahooShot[label]]
+                if yahooShot["assist_id"]:
+                    yahooShot["assist_id"] = mapping[yahooShot["assist_id"]]
 
-            self.playerShotStore.insert(session, yahooShot)
+                self.playerShotStore.insert(session, yahooShot)
+            except KeyError as e:
+                print(e)
+                
 

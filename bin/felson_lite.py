@@ -40,8 +40,8 @@ if __name__ == "__main__":
                     awayESPN = data['predictor'][0][1]
                     homeESPN = data['predictor'][1][1]
 
-                    awayKelly = calculate_kelly_criterion(float(awayESPN)/100, int(awayML))
-                    homeKelly = calculate_kelly_criterion(float(homeESPN)/100, int(homeML))
+                    awayKelly = calculate_kelly_criterion(float(awayESPN)/100, int(awayML), edge=.1)
+                    homeKelly = calculate_kelly_criterion(float(homeESPN)/100, int(homeML), edge=.1)
 
                     awayWin = calculate_winnings(awayKelly, int(awayML), 1)
                     homeWin = calculate_winnings(homeKelly, int(homeML), 1)
@@ -59,7 +59,7 @@ if __name__ == "__main__":
                         print(f"{awayWin:^40.2f}{'':^10}{homeWin:^40.2f}")
                         print("\n\n\n")
                     
-                except ValueError:
+                except (ValueError, KeyError):
                     pass
             
             

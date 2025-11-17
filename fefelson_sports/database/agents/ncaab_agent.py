@@ -20,24 +20,32 @@ class NCAABAlchemy(SQLAlchemyDatabaseAgent):
     def _insert_league_specific_data(self, boxscore: dict, mapping: dict, session: Session):
 
         # pprint(boxscore)
-        # raise
-        
+        espnBox = boxscore.get("espn")
         for a_h in range(2):
             
             yahooTS = boxscore["yahoo"]["teamStats"][a_h]
-            espnTS = boxscore["espn"]["teamStats"][a_h]
+            espnTS = None
+
+            if espnBox and espnBox.get("teamStats"):
+                espnTS = boxscore["espn"]["teamStats"][a_h]
+        
 
             for label in ("game_id", "team_id", "opp_id"):
                 yahooTS[label] = mapping[yahooTS[label]]
-            for label in ("fb_pts", "pts_in_pt"):
-                yahooTS[label] = espnTS[label]
+
+            if espnTS:
+                for label in ("fb_pts", "pts_in_pt"):
+                    yahooTS[label] = espnTS[label]
 
             self.teamsStatStore.insert(session, yahooTS)
 
         for yahooPS in boxscore["yahoo"]["playerStats"]:
-            for label in ("game_id", "team_id", "opp_id", "player_id"):
-                yahooPS[label] = mapping[yahooPS[label]]        
-            self.playerStatStore.insert(session, yahooPS)
+            try:
+                for label in ("game_id", "team_id", "opp_id", "player_id"):
+                    yahooPS[label] = mapping[yahooPS[label]]        
+                self.playerStatStore.insert(session, yahooPS)
+            except KeyError as e:
+                print(e)
 
 
         if boxscore["yahoo"].get("misc"):
@@ -50,4 +58,6 @@ class NCAABAlchemy(SQLAlchemyDatabaseAgent):
                     self.playerShotStore.insert(session, yahooShot)
                 except KeyError:
                     pass
+
+        
 

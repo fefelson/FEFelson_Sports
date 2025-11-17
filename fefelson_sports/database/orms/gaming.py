@@ -19,6 +19,10 @@ class GameLine(Base):
     result = Column(Integer, nullable=False)
     spread_outcome = Column(Integer, nullable=False)
     money_outcome = Column(Integer, nullable=False)
+    spread_wager_pct = Column(Float, nullable=True)
+    spread_stake_pct = Column(Float, nullable=True)
+    money_wager_pct = Column(Float, nullable=True)
+    money_stake_pct = Column(Float, nullable=True)
 
 
 ##############################################################################

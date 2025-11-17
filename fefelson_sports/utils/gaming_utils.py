@@ -42,7 +42,7 @@ def calculate_moneyline_probs(moneyA, moneyB):
     return teamA, teamB, vig
 
 
-def calculate_kelly_criterion(true_prob, gambling_line, *, bankroll=1000.0, edge=0.1, fraction=1.0):
+def calculate_kelly_criterion(true_prob, gambling_line, *, bankroll=1000.0, edge=0.05, fraction=1.0):
     """
     Calculate the Kelly Criterion bet size.
     

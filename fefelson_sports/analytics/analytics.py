@@ -129,13 +129,16 @@ class Analytics:
         valid_group = game_counts[game_counts['game_count'] >= 0.6 * max_games]
 
         # Merge back with the original filtered dataset to only keep valid teams
-        return dataFrame[dataFrame[entityId].isin(valid_group[entityId])]
+        if len(valid_group) > 5:
+            return dataFrame[dataFrame[entityId].isin(valid_group[entityId])]
+        else:
+            return dataFrame
 
 
     def _item_function(self, timeFrame, a_h, entityType, metricLabel, dataFrame, isMax=True):
-        records = []
-        records.append(self._set_league_metric(timeFrame, a_h, entityType, metricLabel, dataFrame, isMax))
-        return records
+        # records = []
+        # records.append(self._set_league_metric(timeFrame, a_h, entityType, metricLabel, dataFrame, isMax))
+        return self._set_league_metric(timeFrame, a_h, entityType, metricLabel, dataFrame, isMax)
 
 
     def _item_mean(
@@ -177,7 +180,7 @@ class Analytics:
         return self._item_function(timeFrame, a_h, entityType, metricLabel, dataFrame, isMax)
 
 
-    def _set_team_minute_adjusted(
+    def _set_minute_adjusted(
                                 self, 
                                 timeFrame: str, 
                                 a_h: str, 
@@ -197,6 +200,19 @@ class Analytics:
         # print("\n\n",metricLabel)
         # pprint(dataFrame.head())
         return self._item_function(timeFrame, a_h, entityType, metricLabel, dataFrame, isMax)
+
+
+    def _set_team_minute_adjusted(
+                                self, 
+                                timeFrame: str, 
+                                a_h: str, 
+                                stat: str, 
+                                adjust: str, 
+                                dataFrame: pd.DataFrame,
+                                metricLabel: str=None,
+                                isMax: bool=True) -> List[Any]:
+        return self._set_minute_adjusted(timeFrame, a_h, stat, adjust, "team_id", "team", dataFrame, metricLabel, isMax)
+
 
 
 
@@ -322,6 +338,8 @@ class Analytics:
 
 
     def _store_models(self, all_list_models):
+        # pprint(all_list_models)
+        # raise
         with get_db_session() as session:
             # Add all list objects at once
             session.add_all(all_list_models)

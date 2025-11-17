@@ -2,15 +2,16 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QWidget, QComboBox, QScrollArea, QVBoxLayout, QHBoxLayout, 
                                 QStackedLayout, QMainWindow, QApplication)
 
-from ..panels.matchup_panel import NBAPanel, NCAABPanel
 from ..panels.mlb_panel import MLBPanel
 from ..panels.nfl_panel import NFLPanel
 from ..panels.ncaaf_panel import NCAAFPanel
+from ..panels.nba_panel import NBAPanel
+from ..panels.ncaab_panel import NCAABPanel
 
 
 class MatchDash(QWidget):
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None): 
         super().__init__(parent)
         self.setFixedSize(1800, 800)
 

@@ -111,6 +111,8 @@ class BatterStore(Store):
             result = result[(result['team_id'] == result[f"{awayHome}_id"])]
 
 
+        if not result["ab"].sum():
+            return None 
         return {
             "ab": result['ab'].sum(),
             "r": result['r'].sum(),

@@ -58,7 +58,7 @@ class MLBAnalytics(Analytics):
         with get_db_session() as session:
             query = f""" 
                         SELECT g.game_id, g.away_id, g.home_id, ps.team_id, ps.opp_id, game_date, 
-                                ps.player_id, w, l, sv, blsv, bba, ha, k, er, full_ip, partial_ip
+                                ps.player_id, w, l, sv, bba, ha, k, er, full_ip, partial_ip
                         FROM pitching_stats AS ps
                         INNER JOIN games AS g ON ps.game_id = g.game_id
                         INNER JOIN baseball_bullpen AS bb ON ps.game_id = bb.game_id AND ps.player_id = bb.player_id
@@ -167,7 +167,6 @@ class MLBAnalytics(Analytics):
                 [tableRecords.append(x) for x in self._ip(timeFrame, a_h, "team_id", "bullpen", teams, isMax=False)]
                 [tableRecords.append(x) for x in self._item_sum(timeFrame, a_h, "w", "team_id", "bullpen", teams)]
                 [tableRecords.append(x) for x in self._item_sum(timeFrame, a_h, "l", "team_id", "bullpen", teams, isMax=False)]
-                [tableRecords.append(x) for x in self._item_per_sum(timeFrame, a_h, "sv", "blsv", "sv", "team_id", "bullpen", teams)]
                 [tableRecords.append(x) for x in self._era(timeFrame, a_h, "team_id", "bullpen", teams)]
                 [tableRecords.append(x) for x in self._whip(timeFrame, a_h, "team_id", "bullpen", teams)]
                 [tableRecords.append(x) for x in self._k9(timeFrame, a_h, "team_id", "bullpen", teams)]

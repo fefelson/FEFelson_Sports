@@ -2,7 +2,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QLabel, QVBoxLayout, QTabWidget
 
-from fefelson_sports.database.stores.gaming import GamingStore
+from fefelson_sports.database.stores.core import GameStore
 from fefelson_sports.gui.components.name_logo import NameAndLogo
 from fefelson_sports.gui.panels.gaming_panel import GamingTitle
 
@@ -52,8 +52,8 @@ class TopPanel(QWidget):
 
     def set_stats(self, session, timeFrame, awayHome):
         for a_h in ("away", "home"):
-            awayHome = a_h if awayHome == "away_home" else awayHome
-            stats =  GamingStore().get_gaming_results(self.game[f"{a_h}Id"], timeFrame, awayHome, session)
+            awayHome = a_h if awayHome != "all" else awayHome
+            stats =  GameStore().get_record(self.game[f"{a_h}Id"], timeFrame, awayHome, session)
             
             self.records[a_h].setText(f"{stats['wins']} - {stats['loses']}")
 

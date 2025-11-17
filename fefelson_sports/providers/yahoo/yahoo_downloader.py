@@ -23,6 +23,31 @@ yahooSlugs = {"NBA": "nba", "NCAAB": "college-basketball", "MLB": "mlb",
                 "NCAAF": "college-football", "NFL": "nfl"}
 
 
+def find_closing_bracket(s, start=0):
+        if s[start] != '{':
+            return -1
+        count = 1
+        for i in range(start + 1, len(s)):
+            if s[i] == '{':
+                count += 1
+            elif s[i] == '}':
+                count -= 1
+                if count == 0:
+                    return i
+        return -1
+
+
+def find_x(key, x):
+    index = x.find(key) 
+    # print(index, x[index])
+    i = find_closing_bracket(x[index:])
+    # print(i, x[index+i])
+    data = json.loads(x[index:index+1+i])  
+    # pprint(data) 
+    # print("\n\n\n\n\n\n\n")
+    return data["game"]
+
+
 ######################################################################
 ######################################################################
 
@@ -39,33 +64,25 @@ class YahooDownloadAgent:
         Recursive function to download yahoo url and isolate json
         Or write to errorFile
         """
-        try:
-            html = urlopen(url)
-            for line in [x.decode("utf-8") for x in html.readlines()]:
-                if "root.App.main" in line:
-                    item = json.loads(";".join(line.split("root.App.main = ")[1].split(";")[:-1]))
-                    item = item["context"]["dispatcher"]["stores"]
-        
-        except (URLError, HTTPError, ValueError) as e:
-            #logger.error(e)
-            # time.sleep(sleepTime)
-            YahooDownloadAgent._fetch_url(url, sleepTime, attempts)
+        item = None
+        if attempts:
+            try:
+                html = urlopen(url)
+                lines = [x.decode("utf-8") for x in html.readlines()]
+                # pprint(lines)
+                # print("\n\n\n")
+                for line in lines:
+                    if "root.App.main" in line:
+                        # print("here")
+                        item = json.loads(";".join(line.split("root.App.main = ")[1].split(";")[:-1]))
+                        item = item["context"]["dispatcher"]["stores"]
+            
+            except (URLError, HTTPError, ValueError) as e:
+                pprint(e)
+                time.sleep(sleepTime)
+                self._fetch_url(url, sleepTime, attempts-1)
         return item
 
-
-    def _find_closing_bracket(self, s, start=0):
-        if s[start] != '[':
-            return -1
-        count = 1
-        for i in range(start + 1, len(s)):
-            if s[i] == '[':
-                count += 1
-            elif s[i] == ']':
-                count -= 1
-                if count == 0:
-                    return i
-        return -1
-    
  
     def fetch_scoreboard(self, gameDate: str) -> dict:
         confId = "confId"
@@ -103,21 +120,57 @@ class YahooDownloadAgent:
     def fetch_boxscore(self, url: str) -> dict:
         if BASE_URL not in url:
             url = f"{BASE_URL}{url}"
-        data = self._fetch_url(url)
         
-        webData = {}
-        webData["provider"] = "yahoo"
-        gameId = data["PageStore"]["pageData"]["entityId"]
-        webData["gameData"] = data["GamesStore"]["games"][gameId]
-        webData["teamData"] = data["TeamsStore"]
-        webData["playerData"] = data["PlayersStore"]
-        webData["statsData"] = data["StatsStore"]
+        html = urlopen(url)
+        data = {}
+        for line in [x.decode("utf-8").encode().decode("unicode_escape") for x in html.readlines()]:
+            if "<script>self.__next_f.push(" in line:
+                for x in line.split("<script>self.__next_f.push("):
+                    # pprint(x)
+                    # print("\n\n\n\n\n\n\n")
+                    if '{"game":{"gameId"' in x:
+                        data['gameDetails'] = find_x('{"game":{"gameId"', x) 
+                    elif '{"bettingRestriction":' in x:
+                        data['gameStats'] = find_x('{"bettingRestriction":', x) 
+                        break
+                        
+                    # else:
+                        # pprint(x)
+                        # print("\n\n\n\n\n\n\n")
+                               
+        data["provider"] = "yahoo"
+        # pprint(data)
         
-        return deepcopy(webData)
+        # with open("/home/ededub/FEFelson/FEFelson_Sports/temp.json", "w") as fileOut:
+        #     json.dump(data, fileOut)
+        # raise
+        return deepcopy(data)
 
 
     def fetch_matchup(self, url: str) -> dict:
-        return self.fetch_boxscore(url)
+        if BASE_URL not in url:
+            url = f"{BASE_URL}{url}"
+        
+        html = urlopen(url)
+        data = {}
+        try:
+            for line in [x.decode("utf-8").encode().decode("unicode_escape") for x in html.readlines()]:
+                if "<script>self.__next_f.push(" in line:
+                    for x in line.split("<script>self.__next_f.push("):
+                        # pprint(x)
+                        # print("\n\n\n")
+                        if '{"game":{"gameId":' in x:
+                            index = x.find('{"game":{"gameId":')
+                            # print(index, x[index])
+                            i = find_closing_bracket(x[index:])
+                            # print(i, x[index+i])
+                            data = json.loads(x[index:index+1+i])
+        except Exception as e:
+            print(e)
+                        
+                               
+        data["provider"] = "yahoo"
+        return deepcopy(data)
 
 
 ######################################################################
@@ -181,6 +234,69 @@ class YahooNCAAFDownloadAgent(YahooDownloadAgent):
         return item 
 
 
+    def fetch_boxscore(self, url: str) -> dict:
+        if BASE_URL not in url:
+            url = f"{BASE_URL}{url}"
+        
+        html = urlopen(url)
+        data = {}
+        for line in [x.decode("utf-8").encode().decode("unicode_escape") for x in html.readlines()]:
+            if "<script>self.__next_f.push(" in line:
+                for x in line.split("<script>self.__next_f.push("):
+                    # pprint(x)
+                    # print("\n\n\n\n\n\n\n")
+                    if '{"game":{"gameId"' in x:
+                        data['gameDetails'] = find_x('{"game":{"gameId"', x) 
+                    elif '{"bettingRestriction":' in x:
+                        data['gameStats'] = find_x('{"bettingRestriction":', x) 
+                        break
+                        
+                    # else:
+                        # pprint(x)
+                        # print("\n\n\n\n\n\n\n")
+                               
+        data["provider"] = "yahoo"
+        # pprint(data)
+        
+        # with open("/home/ededub/FEFelson/FEFelson_Sports/temp.json", "w") as fileOut:
+        #     json.dump(data, fileOut)
+        # raise
+        return deepcopy(data)
+
+
+    # def fetch_boxscore(self, url: str) -> dict:
+
+    #     if BASE_URL not in url:
+    #         url = f"{BASE_URL}{url}"
+    #     data = self._fetch_url(url)
+        
+    #     webData = {}
+    #     webData["provider"] = "yahoo"
+    #     gameId = data["PageStore"]["pageData"]["entityId"]
+    #     webData["gameData"] = data["GamesStore"]["games"][gameId]
+    #     webData["teamData"] = data["TeamsStore"]
+    #     webData["playerData"] = data["PlayersStore"]
+    #     webData["statsData"] = data["StatsStore"]
+        
+    #     return deepcopy(webData)
+
+
+    # def fetch_matchup(self, url: str) -> dict:
+    #     if BASE_URL not in url:
+    #         url = f"{BASE_URL}{url}"
+    #     data = self._fetch_url(url)
+        
+    #     webData = {}
+    #     webData["provider"] = "yahoo"
+    #     gameId = data["PageStore"]["pageData"]["entityId"]
+    #     webData["gameData"] = data["GamesStore"]["games"][gameId]
+    #     webData["teamData"] = data["TeamsStore"]
+    #     webData["playerData"] = data["PlayersStore"]
+    #     webData["statsData"] = data["StatsStore"]
+        
+    #     return deepcopy(webData)
+
+
 ######################################################################
 ######################################################################
 
@@ -203,11 +319,63 @@ class YahooNCAABDownloadAgent(YahooDownloadAgent):
         item = self._fetch_url(url)
         item["provider"] = "yahoo"
         return item 
+
+    
+    def fetch_boxscore(self, url: str) -> dict:
+        if BASE_URL not in url:
+            url = f"{BASE_URL}{url}"
+        data = self._fetch_url(url)
+        
+        webData = {}
+        webData["provider"] = "yahoo"
+        gameId = data["PageStore"]["pageData"]["entityId"]
+        webData["gameData"] = data["GamesStore"]["games"][gameId]
+        webData["teamData"] = data["TeamsStore"]
+        webData["playerData"] = data["PlayersStore"]
+        webData["statsData"] = data["StatsStore"]
+        
+        return deepcopy(webData)
+
+
+    def fetch_matchup(self, url: str) -> dict:
+        return self.fetch_boxscore(url)
         
 
 
         
 
-       
+######################################################################
+######################################################################
+
+
+class YahooNBADownloadAgent(YahooDownloadAgent):
+
+    def __init__(self, leagueId):
+        super().__init__(leagueId)
+
+
+    def fetch_boxscore(self, url: str) -> dict:
+        if BASE_URL not in url:
+            url = f"{BASE_URL}{url}"
+        data = self._fetch_url(url)
+        
+        webData = {}
+        webData["provider"] = "yahoo"
+        gameId = data["PageStore"]["pageData"]["entityId"]
+        webData["gameData"] = data["GamesStore"]["games"][gameId]
+        webData["teamData"] = data["TeamsStore"]
+        webData["playerData"] = data["PlayersStore"]
+        webData["statsData"] = data["StatsStore"]
+        
+        return deepcopy(webData)
+
+
+    def fetch_matchup(self, url: str) -> dict:
+        return self.fetch_boxscore(url)
+
+
+######################################################################
+######################################################################
+
 
     

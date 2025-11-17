@@ -7,7 +7,7 @@ from ..database.stores.core import TeamStore
 from ..providers import get_download_agent, get_normal_agent # factory methods
 
 # for debugging
-from pprint import pprint 
+# from pprint import pprint 
 
 
 ####################################################################
@@ -66,8 +66,8 @@ class Scoreboard:
                 homeTeam = self.teamStore.get_team_info(homeId)
                 homeName = " ".join([homeTeam[key] for key in ("first_name", "last_name")]) if homeTeam else "NA"
                 gameTime = datetime.fromisoformat(game["gameTime"])
-                label = f"{self.leagueId}_{gameTime.strftime('%b_%d_%Y')}_{awayName}_at_{homeName}"
-                #fixing first name spaces in label
+                label = f"{self.leagueId}_{gameTime.strftime('%b_%d_%Y_%H')}_{awayName}_at_{homeName}"
+                # filling blank spaces in label
                 label = sub(' ', '_', label)
 
                 newGame = scoreboard.get(label, deepcopy(gameTemplate))

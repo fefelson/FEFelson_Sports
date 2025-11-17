@@ -97,14 +97,23 @@ class BasketballNormalizer:
 
 
 
-    def _calculate_clutch(self, shot) -> bool:
+    def _calculate_clutch(self, teamIds, shot) -> bool:
         """Determine if the shot is in a clutch situation."""
+
+        side = "home" if teamIds["home"].split(".")[-1] == shot["team"] else "away"
         try:
             mins, secs = map(int, shot["clock"].split(':'))
         except ValueError:
             mins=0
         
-        return mins < 5 and abs(int(shot["home_score"]) - int(shot["away_score"])) <= 5
+        homeScore = int(shot["home_score"])
+        awayScore = int(int(shot["away_score"]))
+
+        if side == "home":
+            homeScore -= int(shot["points"]) * int(shot["shot_made"]) 
+        else:
+            awayScore -= int(shot["points"]) * int(shot["shot_made"]) 
+        return mins < 5 and abs(homeScore - awayScore) <= 5
 
     
 

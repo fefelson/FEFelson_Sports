@@ -3,6 +3,7 @@ from typing import List
 
 from .yahoo_normalizer import YahooNormalizer
 from ...sport_normalizers import BaseballNormalizer
+from ....utils.logging_manager import get_logger
 
 # for debugging
 # from pprint import pprint
@@ -106,250 +107,194 @@ class YahooMLBNormalizer(BaseballNormalizer, YahooNormalizer):
         super().__init__("MLB")
 
 
-    def _starting_lineup(self, gameData):
-        if not gameData.get("lineups"):
-            return None 
-
-        lineups = {}
-        for a_h in ("away", "home"):
-            lineups[a_h] = {}
-            for letter in ("B", "P"):
-                lineups[a_h][letter] = []
-                for player in sorted(gameData["lineups"][f"{a_h}_lineup"][letter].values(), key=lambda x: int(x["order"])):
-                    lineups[a_h][letter].append((player["order"], player["player_id"], player["position"]))
-
-        return lineups
-        
-
-
-
     def _set_atbats(self, webData: dict) -> List[dict]:
-        gameData = webData["gameData"]
-        gameId = gameData["gameid"]
-
-        batterTeam = {}
-        pitcherTeam = {}
-        for playerId, teamId, _ in self._set_player_list(webData, "B"):
-            batterTeam[playerId.split(".")[-1]] = teamId
-        for playerId, teamId, _ in self._set_player_list(webData, "P"):
-            pitcherTeam[playerId.split(".")[-1]] = teamId
-
+        
         atBats = []
-        try:
-            for row in [value for value in gameData["play_by_play"].values() if value["play_type"] == "RESULT"]:
-            
-                result = find_matching_token(row["text"])
+
+        for play in webData["playByPlay"]: 
+            if play["playTypeId"] == "RESULT":
+
+                a_h = "home" if play["gamePeriod"]["inningStage"] == "BOTTOM" else "away"
+                result = find_matching_token(play["text"])
                 if result is not None:
                     atBats.append({
-                        "game_id": gameId,
-                        "team_id": batterTeam[row["batter"]],
-                        "opp_id": pitcherTeam[row["pitcher"]],
-                        "play_num": str((int(row['play_num']) - 1)/100),
-                        "pitcher_id": f"mlb.p.{row['pitcher']}",
-                        "batter_id": f"mlb.p.{row['batter']}",
+                        "game_id": self.gameId,
+                        "team_id": self.teamIds[a_h],
+                        "opp_id": self.oppIds[a_h],
+                        "play_num": str((int(play['playId']) - 1)/100),
+                        "pitcher_id": play["playInfo"]["pitcherId"],
+                        "batter_id": play["playInfo"]["batterId"],
                         "at_bat_type_id": result,
-                        "hit_hardness": row.get("hit_hardness"),
-                        "hit_style":  row.get("hit_style"),
-                        "hit_angle":  row.get("hit_angle"),
-                        "hit_distance": row.get("hit_distance"),
-                        "period": row["period"]
+                        "period": play["gamePeriod"]["period"]
                     })
-        except KeyError:
-            pass
-            # print(f"Skipping {gameId}: No AtBat data")
+        
         return atBats
 
 
     def _set_pitches(self, webData: dict) -> List[dict]:
-        gameData = webData["gameData"]
-        gameId = gameData["gameid"]
+                
+        pitchList = []
+        for play in webData["playByPlay"]: 
+            if play["playTypeId"] == "RESULT":
+                a_h = "home" if play["gamePeriod"]["inningStage"] == "BOTTOM" else "away"
+                pitches = play["playInfo"]["pitches"]
+                
+                for i, pitch in enumerate(pitches):
 
-        batterTeam = {}
-        pitcherTeam = {}
-        for playerId, teamId, _ in self._set_player_list(webData, "B"):
-            batterTeam[playerId.split(".")[-1]] = teamId
-        for playerId, teamId, _ in self._set_player_list(webData, "P"):
-            pitcherTeam[playerId.split(".")[-1]] = teamId
-        
-        pitches = []
-        try:
-            for row in [value for value in gameData["pitches"].values()]:
-                try:
-                    pitches.append({
-                        "game_id": gameId,
-                        "play_num": row["play_num"],
-                        "pitcher_id": f"mlb.p.{row['pitcher']}",
-                        "batter_id": f"mlb.p.{row['batter']}",
-                        "pitch_type_id": row['pitch_type'],
-                        "pitch_result_id": row['result'],
-                        "period": row['period'],
-                        "sequence": row['sequence'],
-                        "balls": row['balls'],
-                        "strikes": row['strikes'],
-                        "vertical": row['vertical'],
-                        "horizontal": row['horizontal'],
-                        "velocity": row['velocity']
+                    balls = int(pitches[i-1]["balls"]) if i > 0 else 0
+                    strikes = int(pitches[i-1]["balls"]) if i > 0 else 0
+                    sequence = int(pitch["sequence"])
+                    playNum = (int(play['playId']) - 1)/100
+            
+                    pitchList.append({
+                        "game_id": self.gameId,
+                        "play_num": playNum - len(pitches) + sequence,
+                        "pitcher_id": pitch['pitcherId'],
+                        "batter_id": pitch['batterId'],
+                        "pitch_type": pitch['pitchType'],
+                        "pitch_result": pitch['result'],
+                        "period": play["gamePeriod"]["period"],
+                        "sequence": sequence,
+                        "balls": balls,
+                        "strikes": strikes,
+                        "vertical": pitch['vertical'],
+                        "horizontal": pitch['horizontal'],
+                        "velocity": pitch['velocity']
                     })
-                except KeyError:
-                    pass
-        except KeyError as e:
-            pass
-            # print(f"Skipping {gameId}: No pitch data   Key Error: {e}")
-        return pitches
+
+        return pitchList
 
 
-
-
-    def _set_player_list(self, data: dict, B_P: str) -> List:
-        gameData = data["gameData"]
-        gameId = gameData["gameid"]
-        
-        teamIds = {"away": gameData["away_team_id"], "home": gameData["home_team_id"]}
-        oppIds = {"away": teamIds["home"], "home": teamIds["away"]}
-
-        playerList = []
-        for a_h in ("away", "home"):
-            try:
-                for value in gameData["lineups"][f"{a_h}_lineup"][B_P].values():
-                    playerList.append((value["player_id"], teamIds[a_h], oppIds[a_h]))
-            except (KeyError, TypeError) as e:
-                pass
-        return playerList
-
-
-
-    def _set_batter_stats(self, webData: dict) -> List[dict]:
+    def _set_batter_stats(self, data: dict) -> List[dict]:
         # pprint(webData["statsData"])
         # raise
-        gameData = webData["gameData"]
-        gameId = gameData["gameid"]
-        teamIds = {"away": gameData["away_team_id"], "home": gameData["home_team_id"]}
-        oppIds = {"away": teamIds["home"], "home": teamIds["away"]}
 
         playerStats=[]
-        for playerId, teamId, oppId in self._set_player_list(webData, "B"):
-            try:
-                raw_player_data = webData["statsData"]["playerStats"][playerId]['mlb.stat_variation.2']
-            except (KeyError, AttributeError):
-                raw_player_data = None
 
-            if raw_player_data :
-                try:
+        for a_h in ("away", "home"):
+            for player in data["gameStats"][f"{a_h}TeamLineup"]:
+                stats = player["player"]["playerGameStats0"]
+
+                if stats:
+                    stats = stats[0]["stats"]
                     playerStats.append({
-                        "player_id": playerId,
-                        "game_id": gameId,
-                        "team_id": teamId,
-                        "opp_id": oppId,
-                        "ab": raw_player_data["mlb.stat_type.2"],
-                        "bb": raw_player_data["mlb.stat_type.14"],
-                        "r": raw_player_data["mlb.stat_type.3"],
-                        "h": raw_player_data["mlb.stat_type.4"],
-                        "hr": raw_player_data["mlb.stat_type.7"],
-                        "rbi": raw_player_data["mlb.stat_type.8"],
-                        "sb": raw_player_data["mlb.stat_type.12"],
-                        "so": raw_player_data["mlb.stat_type.17"]
-                    })                 
-                except (IndexError, KeyError):
-                    pass
+                        "player_id": player["player"]["playerId"],
+                        "game_id": self.gameId,
+                        "team_id": self.teamIds[a_h],
+                        "opp_id": self.oppIds[a_h],
+                        "ab": stats[0]["value"],
+                        "bb": stats[6]["value"],
+                        "r": stats[1]["value"],
+                        "h": stats[2]["value"],
+                        "hr": stats[4]["value"],
+                        "rbi": stats[3]["value"],
+                        "sb": stats[5]["value"],
+                        "so": stats[7]["value"]
+                    })  
+        # pprint(playerStats)
+        # raise               
+                
         return playerStats
 
  
 
 
-    def _set_pitcher_stats(self, webData: dict) -> List[dict]:
-        gameData = webData["gameData"]
-        gameId = gameData["gameid"]
-        teamIds = {"away": gameData["away_team_id"], "home": gameData["home_team_id"]}
-        oppIds = {"away": teamIds["home"], "home": teamIds["away"]}
+    def _set_pitcher_stats(self, data: dict) -> List[dict]:
+        
 
-        playerStats = []
-        for playerId, teamId, oppId in self._set_player_list(webData, "P"):
-            try:
-                raw_player_data = webData["statsData"]["playerStats"][playerId]['mlb.stat_variation.2']
-            except (KeyError, AttributeError):
-                raw_player_data = None
+        playerStats=[]
 
-            if raw_player_data :
-                try:
-                    playerStats.append({
-                        "player_id": playerId,
-                        "game_id": gameId,
-                        "team_id": teamId,
-                        "opp_id": oppId,
-                        "full_ip": raw_player_data["mlb.stat_type.139"].split(".")[0],
-                        "partial_ip": raw_player_data["mlb.stat_type.139"].split(".")[1],
-                        "bba": raw_player_data["mlb.stat_type.118"],
-                        "ha": raw_player_data["mlb.stat_type.111"],
-                        "k": raw_player_data["mlb.stat_type.121"],
-                        "hra": raw_player_data["mlb.stat_type.115"],
-                        "ra": raw_player_data["mlb.stat_type.113"],
-                        "er": raw_player_data["mlb.stat_type.114"],
-                        "w": raw_player_data["mlb.stat_type.101"],
-                        "l": raw_player_data["mlb.stat_type.102"],
-                        "sv": raw_player_data["mlb.stat_type.107"],
-                        "blsv": raw_player_data["mlb.stat_type.147"] 
-                    })                 
-                except (IndexError, KeyError):
-                    pass
-        return playerStats
-
-
-
-
-    def _set_batting_order(self, webData: dict) -> List[dict]:
-        gameData = webData["gameData"]
-        gameId = gameData["gameid"]
-        teamIds = {"away": gameData["away_team_id"], "home": gameData["home_team_id"]}
-        oppIds = {"away": teamIds["home"], "home": teamIds["away"]}
-
-        battingOrder = []
+        winningPitcherId = data["boxscoreResult"]["games"][0]["winningPitcher"]["playerId"]
+        losingPitcherId = data["boxscoreResult"]["games"][0]["losingPitcher"]["playerId"]
         try:
-            for a_h in ("away", "home"):
-                for lineup in gameData["lineups"][f"{a_h}_lineup"]["B"].values():
-                    battingOrder.append({
-                        "game_id": gameId,
-                        "player_id": lineup["player_id"],
-                        "team_id": teamIds[a_h],
-                        "opp_id": oppIds[a_h],
-                        "batt_order": lineup["order"],
-                        "sub_order": lineup["suborder"],
-                        "pos": lineup["position"]
-                    })
+            savingPitcherId = data["boxscoreResult"]["games"][0]["savingPitcher"]["playerId"]
         except TypeError:
-            pass
+            savingPitcherId = -1
+
+        for a_h in ("away", "home"):
+            for player in data["gameStats"][f"{a_h}TeamLineup"]:
+                stats = player["player"]["playerGameStats1"]
+
+                if stats:
+                    stats = stats[0]["stats"]
+                    full_ip, partial_ip = stats[0]["value"].split(".")
+
+                    playerStats.append({
+                        "player_id": player["player"]["playerId"],
+                        "game_id": self.gameId,
+                        "team_id": self.teamIds[a_h],
+                        "opp_id": self.oppIds[a_h],
+                        "full_ip": full_ip,
+                        "partial_ip": partial_ip,
+                        "bba": stats[4]["value"],
+                        "ha": stats[1]["value"],
+                        "k": stats[5]["value"],
+                        "hra": stats[7]["value"],
+                        "ra": stats[2]["value"],
+                        "er": stats[3]["value"],
+                        "w": 1 if player["player"]["playerId"] == winningPitcherId else 0,
+                        "l":  1 if player["player"]["playerId"] == losingPitcherId else 0,
+                        "sv":  1 if player["player"]["playerId"] == savingPitcherId else 0
+                    })  
+
+        # pprint(playerStats)
+        # raise               
+                
+        return playerStats
+                    
+
+
+
+
+    def _set_batting_order(self, data: dict) -> List[dict]:
+        
+        battingOrder = []
+        for a_h in ("away", "home"):
+            for player in data[f"{a_h}TeamLineup"]:
+                if player["positionClass"] == "B":
+
+                    battingOrder.append({
+                        "game_id": self.gameId,
+                        "player_id": player["player"]["playerId"],
+                        "team_id": self.teamIds[a_h],
+                        "opp_id": self.oppIds[a_h],
+                        "batt_order": player["order"],
+                        "sub_order": player["subOrder"],
+                        "pos": player["position"]["abbreviation"]
+                    })
+
+        # pprint(battingOrder)
+        # raise
+
         return battingOrder
 
 
-    def _set_bullpen(self, webData: dict) -> List[dict]:
-        gameData = webData["gameData"]
-        gameId = gameData["gameid"]
-        teamIds = {"away": gameData["away_team_id"], "home": gameData["home_team_id"]}
-        oppIds = {"away": teamIds["home"], "home": teamIds["away"]}
+    def _set_bullpen(self, data: dict) -> List[dict]:
 
         pitchingOrder = []
-        try:
-            for a_h in ("away", "home"): 
-                for bulpen in gameData["lineups"][f"{a_h}_lineup"]["P"].values():
+        for a_h in ("away", "home"):
+            for player in data[f"{a_h}TeamLineup"]:
+                if player["positionClass"] == "P":
+
                     pitchingOrder.append({
-                        "game_id": gameId,
-                        "player_id": bulpen["player_id"],
-                        "team_id": teamIds[a_h],
-                        "opp_id": oppIds[a_h],
-                        "pitch_order": bulpen["order"]
+                        "game_id": self.gameId,
+                        "player_id": player["player"]["playerId"],
+                        "team_id": self.teamIds[a_h],
+                        "opp_id": self.oppIds[a_h],
+                        "pitch_order": player["order"]
                 })
-        except TypeError:
-            pass
+
+        # pprint(pitchingOrder)
+        # raise
+
         return pitchingOrder
 
 
     def _set_lineups(self, webData: dict) -> dict:
         lineups = {}
-        try:
-            lineups["batting"] = self._set_batting_order(webData)
-            lineups["pitching"] = self._set_bullpen(webData)
-        except KeyError:
-            # self.logger.warning("No lineups")
-            pass
+        lineups["batting"] = self._set_batting_order(webData)
+        lineups["pitching"] = self._set_bullpen(webData)
+        
         return lineups
 
 
@@ -368,38 +313,33 @@ class YahooMLBNormalizer(BaseballNormalizer, YahooNormalizer):
 
 
     def _set_team_stats(self, data: dict) -> List[dict]:
-        gameData = data["gameData"]
-        gameId = gameData["gameid"]
-        teamIds = {"away": gameData["away_team_id"], "home": gameData["home_team_id"]}
-        oppIds = {"away": teamIds["home"], "home": teamIds["away"]}
-
         teamStats = []
-        try:
-            for a_h in ("away", "home"):
-                raw_stat_data = data["statsData"]["teamStatsByGameId"][gameId][teamIds[a_h]]['mlb.stat_variation.2']           
+        
+        for a_h in ("away", "home"):
+            opp = "away" if a_h == "home" else "home"
+            try:
+                gameStats0 = data["gameStats"][f"{a_h}TeamGameStats0"]["stats"]
+                gameStats1 = data["gameStats"][f"{a_h}TeamGameStats1"]["stats"]    
 
                 teamStats.append({
-                    "game_id": gameId,
-                    "team_id": teamIds[a_h],
-                    "opp_id": oppIds[a_h],
-                    "ab": raw_stat_data["mlb.stat_type.406"],
-                    "bb": raw_stat_data["mlb.stat_type.415"],
-                    "r": raw_stat_data["mlb.stat_type.402"],
-                    "h": raw_stat_data["mlb.stat_type.403"],
-                    "hr": raw_stat_data["mlb.stat_type.404"],
-                    "rbi": raw_stat_data["mlb.stat_type.405"],
-                    "sb": raw_stat_data["mlb.stat_type.409"],
-                    "lob": raw_stat_data["mlb.stat_type.416"],
-                    "full_ip": raw_stat_data["mlb.stat_type.512"].split(".")[0],
-                    "partial_ip": raw_stat_data["mlb.stat_type.512"].split(".")[1],
-                    "bba": raw_stat_data["mlb.stat_type.503"],
-                    "ha": raw_stat_data["mlb.stat_type.502"],
-                    "ra": raw_stat_data["mlb.stat_type.505"],
-                    "hra": raw_stat_data["mlb.stat_type.507"],
-                    "er": raw_stat_data["mlb.stat_type.506"],
-                    "k": raw_stat_data["mlb.stat_type.504"]
+                    "game_id": self.gameId,
+                    "team_id": self.teamIds[a_h],
+                    "opp_id": self.oppIds[a_h],
+                    "r": data["boxscoreResult"]["games"][0][f"{a_h}Score"],
+                    "h": gameStats0[0]['value'],
+                    "hr": gameStats0[2]['value'],
+                    "sb": gameStats0[4]['value'],
+                    "lob": gameStats0[5]['value'],
+                    "bba": gameStats1[4]['value'],
+                    "ha": gameStats1[2]['value'],
+                    "ra": data["boxscoreResult"]["games"][0][f"{opp}Score"],
+                    "er": gameStats1[1]['value'],
+                    "k": gameStats1[0]['value']
                 })
-        except KeyError:
-            pass
+            except TypeError as e:
+                get_logger().warning(f"_set_team_stats - {e}")
+
+        # pprint(teamStats)
+        # raise
         return teamStats  
 

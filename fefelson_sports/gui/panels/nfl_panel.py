@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 from collections import defaultdict
 
-from .front_panel import FootballFrontPanel
+from .football_front_panel import FootballFrontPanel
 from .matchup_panel import MatchupPanel
 
 

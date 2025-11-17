@@ -19,6 +19,30 @@ class GameStore(Store):
         super().__init__()
 
 
+    def get_record(self, teamId, timeFrame, awayHome, session):
+        if not teamId:
+            return None 
+
+        session = self._execute_with_session(session)
+        andGD = self._and_gameDate(timeFrame)
+
+        query = f"""
+                SELECT game_id, home_id, away_id,
+                    CASE WHEN {teamId} = winner_id THEN 1 ELSE 0 END AS wins,
+                    CASE WHEN {teamId} = loser_id THEN 1 ELSE 0 END AS loses
+
+                FROM games AS g
+                INNER JOIN leagues AS l ON g.league_id = l.league_id
+                WHERE (g.away_id = {teamId} OR g.home_id = {teamId}) {andGD}
+                """
+        result = read_sql(query, session.bind) 
+        if awayHome != "all":
+            result = result[teamId == result[f"{awayHome}_id"]]
+
+        return {"wins": result["wins"].sum(), "loses": result["loses"].sum()}
+
+
+
     def get_opps(self, timeFrame, awayHome, teamId, session):
         if not teamId:
             return None 
@@ -27,13 +51,29 @@ class GameStore(Store):
         andGD = self._and_gameDate(timeFrame)
 
         query = f"""
-                SELECT org_id, game_date
-                FROM football_team_stats AS fts
-                INNER JOIN games AS g ON fts.game_id = g.game_id
-                INNER JOIN teams AS t ON fts.opp_id = t.team_id
-                INNER JOIN leagues AS l ON g.league_id = l.league_id
-                WHERE fts.team_id = {teamId} {andGD}
-                ORDER BY game_date DESC
+                SELECT 
+                    t.org_id, 
+                    q.game_date, 
+                    q.team_id, 
+                    q.away_id, 
+                    q.home_id
+                FROM (
+                    SELECT 
+                        g.game_date, 
+                        {teamId} AS team_id,
+                        g.away_id, 
+                        g.home_id,
+                        CASE 
+                            WHEN {teamId} = g.away_id THEN g.home_id 
+                            ELSE g.away_id 
+                        END AS opp_id,
+                        g.league_id
+                    FROM games AS g
+                    INNER JOIN leagues AS l ON g.league_id = l.league_id
+                    WHERE (g.away_id = {teamId} OR g.home_id = {teamId}) {andGD}
+                ) AS q
+                INNER JOIN teams AS t ON q.opp_id = t.team_id
+                ORDER BY q.game_date DESC;
                 """
         result = read_sql(query, session.bind) 
         if awayHome != "all":

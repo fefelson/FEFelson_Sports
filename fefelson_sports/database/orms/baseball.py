@@ -175,7 +175,6 @@ class PitchingStat(Base):
     w = Column(Integer, nullable=False)
     l  = Column(Integer, nullable=False)
     sv = Column(Integer, nullable=False)
-    blsv = Column(Integer, nullable=False)
 
 
 ##########################################################################

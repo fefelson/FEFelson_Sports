@@ -69,10 +69,12 @@ class ESPNNormalizer:
                     for propBet in betType[key]:
                         entityId = propBet["id"]
                         propBets[propType][entityId] = propBets[propType].get(entityId, defaultdict(dict))
-                        propBets[propType][entityId][betName]["line"] = sub('^[ou]', '', propBet["values"][0]["line"])
-                        for bet in propBet["values"]:
-                            propBets[propType][entityId][betName][bet["type"]] = bet["odds"] if bet["odds"] != "Even" else "+100"
-                                        
+                        try:
+                            propBets[propType][entityId][betName]["line"] = sub('^[ou]', '', propBet["values"][0]["line"])
+                            for bet in propBet["values"]:
+                                propBets[propType][entityId][betName][bet["type"]] = bet["odds"] if bet["odds"] != "Even" else "+100"
+                        except KeyError:
+                            pass             
         except TypeError:
             pass 
 

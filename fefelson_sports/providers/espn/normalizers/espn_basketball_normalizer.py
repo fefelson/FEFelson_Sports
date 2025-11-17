@@ -31,7 +31,7 @@ class ESPNBasketballNormalizer(BasketballNormalizer, ESPNNormalizer):
 
     def _set_players(self, data: dict) -> List[dict]:
         players = []
-        for team in data:
+        for team in data['bxscr']:
             for s_b in team["stats"]:
                 for ath in s_b.get("athlts", []):
                     players.append(ath["athlt"])
@@ -48,21 +48,26 @@ class ESPNBasketballNormalizer(BasketballNormalizer, ESPNNormalizer):
     
 
     def _set_team_stats(self, data: dict) -> List[dict]:
-        teamData = data["matchData"]["tmStats"]
-        gameId = data["matchData"]["gmStrp"]["gid"]
-        teamIds = {"away": teamData["away"]['t']['id'], "home": teamData["home"]['t']['id']}
-        oppIds = {"away": teamIds["home"], "home": teamIds["away"]}
+        
         teamStats = []
 
-        for a_h in ("away", "home"):
+        try:
+            teamData = data["matchData"]["tmStats"]
+            gameId = data["matchData"]["gmStrp"]["gid"]
+            teamIds = {"away": teamData["away"]['t']['id'], "home": teamData["home"]['t']['id']}
+            oppIds = {"away": teamIds["home"], "home": teamIds["away"]}
+            for a_h in ("away", "home"):
+                
+                teamStats.append({
+                    "game_id": gameId,
+                    "team_id": teamIds[a_h],
+                    "opp_id": oppIds[a_h],
+                    "pts": data["matchData"]['gmStrp']['tms'][0 if a_h == 'home' else 1]["score"],
+                    "fb_pts": teamData[a_h]['s']['fastBreakPoints']['d'],
+                    "pts_in_pt": teamData[a_h]['s']['pointsInPaint']['d']
+                })
+        except KeyError as e:
+            print(e)
             
-            teamStats.append({
-                "game_id": gameId,
-                "team_id": teamIds[a_h],
-                "opp_id": oppIds[a_h],
-                "pts": data["matchData"]['gmStrp']['tms'][0 if a_h == 'home' else 1]["score"],
-                "fb_pts": teamData[a_h]['s']['fastBreakPoints']['d'],
-                "pts_in_pt": teamData[a_h]['s']['pointsInPaint']['d']
-            })
         return teamStats 
         

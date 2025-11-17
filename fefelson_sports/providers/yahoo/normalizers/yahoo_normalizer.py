@@ -2,6 +2,8 @@ from datetime import datetime
 from pytz import timezone
 from typing import Any, List
 
+from ....utils.logging_manager import get_logger
+
 # for debugging
 from pprint import pprint
 
@@ -11,6 +13,16 @@ from pprint import pprint
 
 
 est = timezone('America/New_York')
+
+
+def select_betting_section(bettingType, bettingJson):
+
+    for item in bettingJson:
+        if item["type"] == bettingType:
+            return item
+
+    # fallthrough
+    return None
 
 
 ##########################################################################
@@ -23,79 +35,66 @@ class YahooNormalizer:
     def __init__(self, leagueId: str):
 
         self.leagueId = leagueId
+
+        self.gameId = None
+        self.teamIds = None
+        self.oppIds = None
         
 
-
     def normalize_boxscore(self, webData: dict) -> dict:
+        gameStats = webData["gameStats"]
+        gameDetails = webData["gameDetails"]
 
-        gameId = webData["gameData"]["gameid"]
-        gameData = webData["gameData"]
- 
+        self.gameId = gameDetails["gameId"]
+        self.teamIds = {"away": gameDetails["awayTeamId"], "home": gameDetails["homeTeamId"]}
+        self.oppIds = {"away": self.teamIds["home"], 
+                        "home": self.teamIds["away"], 
+                        self.teamIds["home"]: self.teamIds["away"],
+                        self.teamIds["away"]: self.teamIds["home"]}
+
         return {
             "provider": "yahoo",
-            "game": self._set_game_info(gameData),
-            "teamStats": self._set_team_stats(webData),
+            "game": self._set_game_info(gameDetails),
+            "teamStats": self._set_team_stats(gameDetails),
             "playerStats": self._set_player_stats(webData),
-            "periods": self._set_period_data(gameData),
-            "gameLines": self._set_game_lines(gameData),
-            "overUnder": self._set_over_under(gameData), 
-            "lineups": self._set_lineups(webData),
-            "teams": [team for team in self._set_teams(webData["teamData"]["teams"])
-                   if team["team_id"] in (gameData["away_team_id"], gameData["home_team_id"])],
-            "players": self._set_players(webData["playerData"]),
-            "stadium": self._set_stadium(gameData),
-            "misc": self._set_misc(webData)
+            "periods": self._set_period_data(gameDetails),
+            "gameLines": self._set_game_lines(gameDetails),
+            "overUnder": self._set_over_under(gameDetails), 
+            "lineups": self._set_lineups(gameStats),
+            "teams": self._set_teams(gameDetails),
+            "players": self._set_players(gameDetails),
+            "stadium": self._set_stadium(gameDetails["venue"]),
+            "misc": self._set_misc(gameDetails)
         }
 
 
-    def _starting_lineup(self, gameData):
-        try:
-            lineups = {x: gameData["lineups"][x] for x in ("away_lineup", "home_lineup")}
-        except KeyError:
-            lineups = None
-        return lineups
-
-
     def normalize_matchup(self, webData: dict) -> dict:
-        #self.logger.debug("Normalize Yahoo matchup")
-        gameData = webData["gameData"]
-        gameId = gameData["gameid"]
+        # pprint(webData)
+        gameData = webData["game"]
 
         try:
-           odds = []
-           for o in gameData["odds"].values():
-               o["timestamp"] = str(datetime.now().astimezone(est))
-               odds.append(o)
-        except KeyError:
-            odds = []
-
-        try:
-            pitchers = gameData["byline"]["playersByType"]
+            pitchers = [gameData[f"{a_h}StartingPitcher"] for a_h in ("away", "home")]
         except KeyError:
             pitchers = None
-
-
+                    
         return {
             "provider": "yahoo",
-            "gameId": gameData["gameid"],
+            "gameId": gameData["gameId"],
             "leagueId": self.leagueId,
-            "homeId": gameData["home_team_id"],
-            "awayId": gameData["away_team_id"],
-            "url": gameData["navigation_links"]["boxscore"]["url"],
-            "gameTime": str(datetime.strptime(gameData["start_time"], "%a, %d %b %Y %H:%M:%S %z").astimezone(est)), 
+            "homeId": gameData["homeTeamId"],
+            "awayId": gameData["awayTeamId"],
+            "gameTime": str(datetime.strptime(gameData["startTime"], "%Y-%m-%dT%H:%M:%S%z").astimezone(est)), 
             "season": gameData["season"],
-            "week": gameData.get("week", None),
-            "statusType": gameData["status_type"].lower(),
-            "gameType": gameData["game_type"].split(".")[-1].lower() if gameData["game_type"] else None,
-            "odds": odds,
+            "week": gameData["week"],
+            "statusType": gameData["status"].lower(),
+            "gameType": gameData["seasonPhase"].lower(),
+            "odds": gameData["bets"],
             "pitchers": pitchers,
-            "lineups": self._starting_lineup(gameData),
-            "players": {x: gameData["playersByTeam"][x] for x in (gameData["away_team_id"], gameData["home_team_id"])},
-            "teams": [team for team in self._set_teams(webData["teamData"]["teams"])
-                   if team["team_id"] in (gameData["away_team_id"], gameData["home_team_id"])],
-            "injuries": [player["injury"] for player in webData["playerData"]["players"].values() if player.get("injury", None)],
-            "stadiumId": gameData.get("stadium_id", None),
-            "isNuetral": bool(gameData.get("tournament")),
+            "lineups": [gameData[f"{a_h}TeamLineup"] for a_h in ("away", "home")],
+            "teams": self._set_teams(gameData),
+            "injuries": [gameData[f"{a_h}Team"]["injuredPlayers"] for a_h in ("away", "home")],
+            "stadiumId": gameData["venue"]["venueId"],
+            # "isNuetral": webData["tournamentId"],
         }
 
 
@@ -153,66 +152,78 @@ class YahooNormalizer:
 
 
     def _set_game_info(self, game: dict) -> dict:
-            
-        winnerId = game.get("winning_team_id")
+        
+        winnerId = game.get("winningTeamId")
+        loserId = None
         if winnerId:
-            loserId = game["home_team_id"] if winnerId == game["away_team_id"] else game["away_team_id"]
-            winnerId, loserId = winnerId, loserId
-        else:
-            loserId = None
-
-        return {
-            "game_id": game["gameid"],
+            loserId = game["homeTeamId"] if winnerId == game["awayTeamId"] else game["awayTeamId"]
+        
+        gameInfo = {
+            "game_id": self.gameId,
             "league_id": self.leagueId,
-            "home_id": game["home_team_id"],
-            "away_id": game["away_team_id"],
+            "home_id": game["homeTeamId"],
+            "away_id": game["awayTeamId"],
             "winner_id": winnerId,
             "loser_id": loserId,
-            "stadium_id": game.get("stadium_id", None),
-            "is_neutral_site": bool(game.get("tournament", 0)),
-            "game_date": str(datetime.strptime(game["start_time"], "%a, %d %b %Y %H:%M:%S %z").astimezone(est)), 
+            "stadium_id": game["venue"]["venueId"].split(".")[-1],
+            # "is_neutral_site": bool(game["tournamentId"]),
+            "game_date": str(datetime.strptime(game["startTime"], "%Y-%m-%dT%H:%M:%S%z").astimezone(est)), 
             "season": game["season"],
-            "week": game.get("week_number", None),
-            "game_type": game["season_phase_id"].split(".")[-1].lower(),
-            "game_result": game["outcome_type"].split(".")[-1].lower() if game["outcome_type"] else "unknown"
+            "week": game["week"],
+            "game_type": game["seasonPhase"],
+            "game_result": game["displayResult"]
         }
+
+        # pprint(gameInfo)
+        # raise
+        return gameInfo
 
         
     def _set_game_lines(self, data: dict) -> List[dict]:
-        gameId = data["gameid"]
-        teamIds = {"away": data["away_team_id"], "home": data["home_team_id"]}
-        oppIds = {"away": teamIds["home"], "home": teamIds["away"]}
-        
+     
         gameLines = []
-        try:
-            odds = list(data["odds"].values())[-1]
 
-            awayPts = int(data["total_away_points"])
-            homePts = int(data["total_home_points"])
+        if not data["bets"]:
+            return gameLines
 
-            for a_h, teamPts, oppPts in [("away", awayPts, homePts), ("home", homePts, awayPts)]:
-                try:
-                    result = teamPts - oppPts
-                    spread_key = f"{a_h}_spread"
-                    spreadOutcome = (result + float(odds[spread_key])>0) - (result + float(odds[spread_key]) < 0)
-                    moneyOutcome = (teamPts > oppPts) - (teamPts < oppPts)  # Boolean, automatically 1 (win) or 0 (loss)
+        teamPts = {data[f"{a_h}TeamId"]: data[f"{a_h}Score"] for a_h in ("away", "home")}
+
+        for i in range(2):
+            
+            try:
+                moneyLine = select_betting_section("MONEY_LINE", data["bets"])["options"][i]
+                spread = select_betting_section("SPREAD", data["bets"])["options"][i]
+
+                teamId = moneyLine["teams"][0]["teamId"]
+                oppId = self.oppIds[teamId]
                     
-                    gameLines.append({
-                        "team_id": teamIds[a_h],
-                        "opp_id": oppIds[a_h],
-                        "game_id": gameId,
-                        "spread": odds[spread_key],
-                        "spread_line": -110 if odds[f"{a_h}_line"] == '' else odds[f"{a_h}_line"] ,
-                        "money_line": None if odds[f"{a_h}_ml"] == '' else odds[f"{a_h}_ml"], 
-                        "result": result,
-                        "spread_outcome": spreadOutcome,
-                        "money_outcome": moneyOutcome
-                    })
-                except ValueError:
-                    pass
-        except (KeyError, UnboundLocalError, TypeError) as e:
-            # self.logger.warning(f"No Odds Data for {gameId}")
-            pass
+                result = teamPts[teamId] - teamPts[oppId]
+                spreadOutcome = (result + float(spread["shortName"])>0) - (result + float(spread["shortName"]) < 0)
+                moneyOutcome = (teamPts[teamId] > teamPts[oppId]) - (teamPts[teamId] < teamPts[oppId])  # Boolean, automatically 1 (win) or 0 (loss)
+                
+                
+                gameLines.append({
+                    "team_id": teamId,
+                    "opp_id": oppId,
+                    "game_id": self.gameId,
+                    "spread": spread["shortName"],
+                    "spread_line": spread["americanOdds"],
+                    "spread_wager_pct": spread["wagerPercentage"],
+                    "spread_stake_pct": spread["stakePercentage"],
+                    "money_line": moneyLine["americanOdds"], 
+                    "money_wager_pct": moneyLine["wagerPercentage"],
+                    "money_stake_pct": moneyLine["stakePercentage"],
+                    "result": result,
+                    "spread_outcome": spreadOutcome,
+                    "money_outcome": moneyOutcome
+                })
+            except Exception as e:
+                get_logger().warning(f"_set_game_lines - {e}")
+                pprint(data["bets"])
+                raise
+               
+        # pprint(gameLines)
+        # raise
         return gameLines
     
 
@@ -221,112 +232,105 @@ class YahooNormalizer:
 
 
     def _set_over_under(self, data: dict) -> dict:
-        gameId = data["gameid"]
-        try:
-            odds = list(data["odds"].values())[-1]
-        except:
-            odds = None
-        
-        try:
-            total = int(data["total_away_points"]) + int(data["total_home_points"])
-        except:
-            total = None
         
         overUnder = None
+
+        if not data["bets"]:
+            return overUnder
+
         try:
+            total = int(data["awayScore"]) + int(data["homeScore"])
+            oU = float(select_betting_section("OVER_UNDER", data["bets"])["options"][0]["optionDetails"][0]["value"])
+            
             overUnder = {
-                "game_id": gameId,
-                "over_under": odds["total"],
-                "over_line": -110 if odds["over_line"] == '' else odds["over_line"],
-                "under_line": -110 if odds["under_line"] == '' else odds["under_line"],
-                "total": total,
-                "ou_outcome": (float(total) > float(odds["total"])) - (float(total) < float(odds["total"]))
-            }
-        except (KeyError, UnboundLocalError, TypeError, ValueError) as e:
-            # self.logger.warning(f"No Odds Data for {gameId}")
-            pass
+                    "game_id": self.gameId,
+                    "over_under": oU,
+                    "over_line": select_betting_section("OVER_UNDER", data["bets"])["options"][0]["americanOdds"],
+                    "under_line": select_betting_section("OVER_UNDER", data["bets"])["options"][1]["americanOdds"],
+                    "total": total,
+                    "ou_outcome": (float(total) > oU) - (float(total) < oU)
+                }
+        except Exception as e:
+            get_logger().warning(f"_set_over_under - {e}")
+            pprint(data["bets"])
+            raise
+       
+       
+        # pprint(overUnder)
+        # raise 
+
         return overUnder
 
 
     def _set_period_data(self, data: dict) -> List[dict]:
-        gameId = data["gameid"]
-        teamIds = {"away": data["away_team_id"], "home": data["home_team_id"]}
-        oppIds = {"away": teamIds["home"], "home": teamIds["away"]}
 
         periods = []
-        try:
-            for p in data["game_periods"]:
-                periodId = p["period_id"]
-                for a_h in ("away", "home"):
-                   
-                   periods.append({
-                        "game_id": gameId,
-                        "team_id": teamIds[a_h],
-                        "opp_id": oppIds[a_h],
-                        "period": periodId,
-                        "pts": int(p["{}_points".format(a_h)])
-                    })
-        except (TypeError, ValueError):
-            pass
+        for a_h in ("away", "home"):
+            for period in data[f"{a_h}LineScore"]:
+                # pprint(period)
+                # raise                
+                periods.append({
+                    "game_id": self.gameId,
+                    "team_id": self.teamIds[a_h],
+                    "opp_id": self.oppIds[a_h],
+                    "period": period["period"]["period"],
+                    "pts": period["score"]
+                })
+        # pprint(periods)
+        # raise
+        
         return periods
 
 
     def _set_players(self, data: dict) -> List[dict]:
-        posTypes = dict([(key, value["abbr"]) for key, value in data["positions"].items()])
+
         players = []
-        for key, value in data["players"].items():
-            
-            try:
-                position = posTypes.get(value.get("primary_position_id", {}), None)
-            except TypeError:
-                position = None
-            
-            players.append({
-                "player_id": value["player_id"],
-                "first_name": value["first_name"],
-                "last_name": value["last_name"],
-                "pos": position
-            })
-        return players
 
-
-    def _set_player_stats_list(self, data: dict) -> List:
-        
-        teamIds = {"away": data["away_team_id"], "home": data["home_team_id"]}
-        oppIds = {"away": teamIds["home"], "home": teamIds["away"]}
-
-        playerList = []
         for a_h in ("away", "home"):
-            try:
-                for playerId in data["lineups"]["{}_lineup_order".format(a_h)]["all"]:
-                    playerList.append((playerId, teamIds[a_h], oppIds[a_h]))
-            except (KeyError, TypeError) as e:
-                self.logger.warning("No player List for "+data["gameid"])
-        return playerList
+            for player in data[f"{a_h}TeamLineup"]:
+                # pprint(player)
+                try:
+                    pos = player["player"]["positionIds"][0]
+                except IndexError:
+                    pos = "n/a"
+                
+                players.append({
+                    "player_id": player["player"]["playerId"],
+                    "first_name": player["player"]["firstName"],
+                    "last_name": player["player"]["lastName"],
+                    "bats": player["player"].get("battingSide"),
+                    "throws": player["player"].get("throwingHand"),
+                    "pos": pos
+                })
+        # pprint(players)
+        # raise
+        return players
 
 
     def _set_stadium(self, data: dict) -> dict:
         return {
-            "stadium_id": data["stadium_id"],
-            "name": data.get("stadium", None)
+            "stadium_id": data["venueId"].split(".")[-1],
+            "name": data["displayName"]
         }
 
 
     def _set_teams(self, data: dict) -> List[dict]:
         teams = []
-        for team in [value for key, value in data.items() if self.leagueId.lower() in key]:
-            team["first_name"] = "Oakland" if team["last_name"] == "Athletics" else team["first_name"]
+        for a_h in ("away", "home"):
+            team = data[f"basic{a_h.capitalize()}Team"]
             teams.append({
-                "team_id": team["team_id"],
+                "team_id": team["teamId"],
                 "league_id": self.leagueId,
-                "first_name": team["first_name"],
-                "last_name": team["last_name"],
-                "abrv": team.get("abbr", "N/A"),
-                "conference": team.get("conference_abbr", None),
-                "division": team.get("division", None),
-                "primary_color": team.get("colorPrimary", None),
-                "secondary_color": team.get("colorSecondary", None)
+                "display_name": team["displayName"],
+                "last_name": team["nickname"],
+                "abrv": team["abbreviation"],
+                "primary_color": team["primaryColor"],
+                "secondary_color": team["secondaryColor"]
                 })
+        
+        # pprint(teams)
+        # raise
+
         return teams  
     
 

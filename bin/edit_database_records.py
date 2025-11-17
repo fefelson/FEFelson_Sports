@@ -14,7 +14,7 @@ from fefelson_sports.models.players import Player
 
 def clear_table(tableName):
     with get_db_session() as session:
-        session.execute(text(f"DELETE FROM {tableName} WHERE league_id = 'NFL'"))
+        session.execute(text(f"DELETE FROM {tableName} WHERE league_id = 'NBA'"))
 
 
 
@@ -34,31 +34,34 @@ def update_league():
 
     with get_db_session() as session:
         nfl = session.query(League).filter_by(league_id="NFL").first()
-        nfl.curr_season = 2025
-        nfl.start_date = date(2025,8,19)
-        nfl.end_date = date(2026,2,10)
+        # nfl.curr_season = 2025
+        # nfl.start_date = date(2025,8,19)
+        # nfl.end_date = date(2026,2,10)
         nfl.last_update = None
 
-        # mlb = session.query(League).filter_by(league_id="MLB").first()
+        mlb = session.query(League).filter_by(league_id="MLB").first()
         # mlb.curr_season = 2025
         # mlb.start_date = date(2025,3,15)
         # mlb.end_date = date(2025,11,5)
         # mlb.last_update = None
 
-        # ncaaf = session.query(League).filter_by(league_id="NCAAF").first()
+        ncaaf = session.query(League).filter_by(league_id="NCAAF").first()
         # ncaaf.curr_season = 2025
         # ncaaf.start_date = date(2025,8,19)
         # ncaaf.end_date = date(2026,1,20)
+        ncaaf.last_update = None
 
-        # nba = session.query(League).filter_by(league_id="NBA").first()
+        nba = session.query(League).filter_by(league_id="NBA").first()
         # nba.curr_season = 2025
         # nba.start_date = date(2025,10,18)
         # nba.end_date = date(2026,6,20)
+        nba.last_update = None
 
-        # ncaab = session.query(League).filter_by(league_id="NCAAB").first()
+        ncaab = session.query(League).filter_by(league_id="NCAAB").first()
         # ncaab.curr_season = 2025
         # ncaab.start_date = date(2025,11,1)
         # ncaab.end_date = date(2026,4,10)
+        ncaab.last_update = None
 
 
 
@@ -104,17 +107,7 @@ def update_weeks():
         secondWeek.start_date = date(2025,9,3)
 
 
-def set_mlb_b_t():
 
-    model = Player("MLB")
-    playerStore = PlayerStore()
-    providerStore = ProviderStore()
-
-    with get_db_session() as session:
-        for playerId in playerStore.get_mlb_players_with_null_bats_and_throws(session):
-            yahooId = providerStore.get_outside_id("yahoo", "MLB", "player", playerId, session)
-            playerStore.update_player(playerId, model.process(yahooId), session)
-            session.commit()
 
         
 
@@ -124,7 +117,7 @@ if __name__ == "__main__":
     
     # reset_db()
     # seed_data()
-    # update_league()
+    update_league()
     # clear_table("games")
     # # create_weeks()
     # # update_weeks()

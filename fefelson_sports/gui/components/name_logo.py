@@ -48,8 +48,13 @@ class NameAndLogo(QWidget):
 
 
     def set_team(self, team):
-        self.firstName.setText(team["first_name"])
-        self.lastName.setText(team["last_name"])
+        
+        try:
+            self.firstName.setText(team["first_name"])
+            self.lastName.setText(team["last_name"])
+        except KeyError:
+            self.firstName.setText("N/A")
+            self.lastName.setText("N/A")
         try:
             self.logo.set_logo(team["org_id"])
             if team["type"] == "school":

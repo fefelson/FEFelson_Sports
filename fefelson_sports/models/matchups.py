@@ -110,8 +110,8 @@ class Matchup:
             return True 
         if (gameTime - now < timedelta(hours=3) and not matchup.get("lineups")):
             return True 
-        if self.leagueId == "MLB" and  (not matchup['pitchers']['away'] or not matchup['pitchers']['home']):
-            return True
+        # if self.leagueId == "MLB" and  (not matchup['pitchers']['away'] or not matchup['pitchers']['home']):
+        #     return True
         return False 
         
 
@@ -130,8 +130,9 @@ class Matchup:
 
         if not lastUpdate or (now - lastUpdate) > timedelta(minutes=45):
             try:
-                matchup["odds"].append(game["odds"][0])
-                self._write(filePath, matchup)
+                if game['odds'][0]['home_spread'] != '' or (game['odds'][0]['away_ml'] != '' and game['odds'][0]['home_ml'] != ''):
+                    matchup["odds"].append(game["odds"][0])
+                    self._write(filePath, matchup)
             except IndexError:
                 pass 
 
@@ -143,7 +144,6 @@ class Matchup:
 
 
     def _update(self, session, filePath, matchup, game):
-        
         info = {}
         for provider, url in game["urls"].items():
             webData = self.download(provider, url)
@@ -172,66 +172,66 @@ class Matchup:
                     
 
             matchup["predictor"] = info["espn"].get("predictor")
-        except KeyError:
+        except KeyError as e:
             get_logger().warning(f"No ESPN for - {game['title']}")
-        
 
         
-        players = defaultdict(dict)      
-        yahooPlayers = info["yahoo"].get("players")
-        teamPlayers = {}
+        # players = defaultdict(dict)      
+        # yahooPlayers = info["yahoo"].get("players")
+        # teamPlayers = {}
 
-        if yahooPlayers:
-            for key in yahooPlayers:
-                teamId = self.providerStore.get_inside_id("yahoo", self.leagueId, "team", key, session)
+        # if yahooPlayers:
+        #     for key in yahooPlayers:
+        #         teamId = self.providerStore.get_inside_id("yahoo", self.leagueId, "team", key, session)
                 
-                if teamId != -1:
-                    for yahooId in yahooPlayers[key]:
-                        teamPlayers[yahooId] = teamId 
+        #         if teamId != -1:
+        #             for yahooId in yahooPlayers[key]:
+        #                 teamPlayers[yahooId] = teamId 
             
-                        playerId = self.providerStore.get_inside_id("yahoo", self.leagueId, "player", yahooId, session)
-                        if playerId != -1:
-                            player = self.playerStore.get_info(playerId, session)
-                            players[teamId][playerId] = player
-        matchup["players"] = players
+        #                 playerId = self.providerStore.get_inside_id("yahoo", self.leagueId, "player", yahooId, session)
+        #                 if playerId != -1:
+        #                     player = self.playerStore.get_info(playerId, session)
+        #                     players[teamId][playerId] = player
+        # matchup["players"] = players
         
-        injuries = defaultdict(list)
-        yahooInjury = info["yahoo"].get("injuries")
-        if yahooInjury:
-            for injury in yahooInjury:
-                playerId = self.providerStore.get_inside_id("yahoo", self.leagueId, "player", injury['player_id'], session)
-                if playerId != -1:
-                    teamId = teamPlayers[injury['player_id']]
-                    injuries[teamId].append({"player_id": playerId, "date": injury["date"], "type": injury["type"], "comment": injury["comment"]})
-        matchup["injuries"] = injuries
+        # injuries = defaultdict(list)
+        # yahooInjury = info["yahoo"].get("injuries")
+        # if yahooInjury:
+        #     for injury in yahooInjury:
+        #         playerId = self.providerStore.get_inside_id("yahoo", self.leagueId, "player", injury['player_id'], session)
+        #         if playerId != -1:
+        #             teamId = teamPlayers[injury['player_id']]
+        #             injuries[teamId].append({"player_id": playerId, "date": injury["date"], "type": injury["type"], "comment": injury["comment"]})
+        # matchup["injuries"] = injuries
 
 
-        pitchers = {"away": None, "home": None}
-        yahooPitchers = info["yahoo"].get("pitchers")
-        if yahooPitchers:
-            for a_h in ("away", "home"):
-                playerId = self.providerStore.get_inside_id("yahoo", self.leagueId, "player", yahooPitchers[f"{a_h}_pitcher"], session)
-                if playerId != -1:
-                    player = self.playerStore.get_info(playerId, session)
-                    pitchers[a_h] = (playerId, f"{player['first_name']} {player['last_name']}", player["throws"])
-        matchup["pitchers"] = pitchers
+        # pitchers = {"away": None, "home": None}
+        # yahooPitchers = info["yahoo"].get("pitchers")
+        # if yahooPitchers:
+        #     raise
+        #     for a_h in ("away", "home"):
+        #         playerId = self.providerStore.get_inside_id("yahoo", self.leagueId, "player", yahooPitchers[f"{a_h}_pitcher"], session)
+        #         if playerId != -1:
+        #             player = self.playerStore.get_info(playerId, session)
+        #             pitchers[a_h] = (playerId, f"{player['first_name']} {player['last_name']}", player["throws"])
+        # matchup["pitchers"] = pitchers
         
-        lineups = defaultdict(list)
-        yahooLineups = info["yahoo"].get("lineups")
-        if yahooLineups:
-            for a_h in ("away", "home"):
-                for batter in yahooLineups[a_h]["B"]:
-                    playerId = self.providerStore.get_inside_id("yahoo", self.leagueId, "player", batter[1], session)
-                    if playerId != -1:
-                        player = self.playerStore.get_info(playerId, session)
-                        lineups[a_h].append((playerId, f"{player['last_name']}", player["bats"], batter[-1]))
-        matchup["lineups"] = lineups
+        # lineups = defaultdict(list)
+        # yahooLineups = info["yahoo"].get("lineups")
+        # if yahooLineups:
+        #     for a_h in ("away", "home"):
+        #         for batter in yahooLineups[a_h]["B"]:
+        #             playerId = self.providerStore.get_inside_id("yahoo", self.leagueId, "player", batter[1], session)
+        #             if playerId != -1:
+        #                 player = self.playerStore.get_info(playerId, session)
+        #                 lineups[a_h].append((playerId, f"{player['last_name']}", player["bats"], batter[-1]))
+        # matchup["lineups"] = lineups
 
         teams = {"away":None, "home":None}
         yahooTeams = info["yahoo"].get("teams")
 
         for i, h_a in enumerate(("home", "away")):
-            teamId = self.providerStore.get_inside_id("yahoo", self.leagueId, "team", yahooTeams[i]["team_id"], session)
+            teamId = self.providerStore.get_inside_id("yahoo", self.leagueId, "team", info["yahoo"][f"{h_a}Id"], session)
             if teamId != -1:
                 teams[h_a] = self.teamStore.get_team_info(teamId, session)
             else:
@@ -243,7 +243,6 @@ class Matchup:
         
         
         matchup["lastUpdate"] = str(now)
-        
         self._write(filePath, matchup)
 
    

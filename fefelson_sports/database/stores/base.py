@@ -35,7 +35,10 @@ class LeagueStore(Store):
         session = self._execute_with_session(session)
         league = self.get_by_id(leagueId, session)
         
-        return league.last_update
+        if league.last_update:
+            return league.last_update
+        else:
+            return league.start_date
         
             
 

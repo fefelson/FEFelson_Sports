@@ -12,3 +12,4 @@ matchups/
 __pycache__/
 *.pyc
 .env
+.png

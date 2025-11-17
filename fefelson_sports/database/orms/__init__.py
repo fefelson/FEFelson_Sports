@@ -7,7 +7,7 @@ from .basketball import (BasketballTeamStat, BasketballShotType, BasketballPlaye
                             BasketballShot)
 from .football import (FootballTeamStat, PassPlay, RushPlay, KickPlay, FootballPassing, 
                         FootballRushing, FootballReceiving, FootballFumbles, FootballPunting, 
-                        FootballReturns, FootballDefense)
+                        FootballKicking, FootballReturns, FootballDefense)
 from .gaming import GameLine, OverUnder
 
 
@@ -19,7 +19,7 @@ __all__ = [
     "BasketballTeamStat", "BasketballPlayerStat", "BasketballShot", "BasketballShotType",
     "FootballTeamStat", "PassPlay", "RushPlay", "KickPlay", "FootballPassing", 
     "FootballRushing", "FootballReceiving", "FootballFumbles", "FootballPunting", 
-    "FootballReturns", "FootballDefense",
+    "FootballKicking", "FootballReturns", "FootballDefense",
     "GameLine", "OverUnder",
     "LeagueMetric", "StatMetric"
 ]

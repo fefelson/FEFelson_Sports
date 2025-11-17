@@ -1,13 +1,14 @@
 from datetime import date, timedelta
 from collections import defaultdict
 
-from .football_front_panel import FootballFrontPanel
+from .basketball_front_panel import BasketballFrontPanel
 from .matchup_panel import MatchupPanel
 
 
 
 
-class NCAAFPanel(MatchupPanel):
+
+class NCAABPanel(MatchupPanel):
 
     def __init__(self, parent):
         super().__init__(parent)
@@ -17,7 +18,7 @@ class NCAAFPanel(MatchupPanel):
 
         for a_h in ("away", "home"):
             
-            self.frontPanel[a_h] = FootballFrontPanel("NCAAF", a_h)
+            self.frontPanel[a_h] = BasketballFrontPanel("NCAAB", a_h)
             self.tabs[a_h].addTab(self.frontPanel[a_h], "page1")
 
 

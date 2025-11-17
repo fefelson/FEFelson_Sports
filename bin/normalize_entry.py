@@ -7,7 +7,7 @@ from fefelson_sports.utils.logging_manager import get_logger
 
 
 
-from fefelson_sports.analytics import MLBAnalytics, NFLAnalytics, NCAAFAnalytics
+from fefelson_sports.analytics import MLBAnalytics, NFLAnalytics, NCAAFAnalytics, NBAAnalytics, NCAABAnalytics
 
 def main():
 

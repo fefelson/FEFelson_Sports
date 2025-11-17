@@ -49,12 +49,12 @@ class SQLAlchemyDatabaseAgent(DatabaseAgent):
         yahooBox = boxscore.get("yahoo")
         espnBox = boxscore.get("espn")
 
-        for a_h in ("game_id", "away_id", "home_id"):
+        for key in ("game_id", "away_id", "home_id"):
             if yahooBox:
-                mapping[boxscore["yahoo"]["game"][a_h]] = boxscore[a_h] 
+                mapping[boxscore["yahoo"]["game"][key]] = boxscore[key] 
 
             if espnBox:
-                mapping[boxscore["espn"]["game"][a_h]] = boxscore[a_h]  
+                mapping[boxscore["espn"]["game"][key]] = boxscore[key]  
         
         if yahooBox and espnBox:
 
@@ -94,14 +94,19 @@ class SQLAlchemyDatabaseAgent(DatabaseAgent):
         espnBox = boxscore.get("espn")
 
         stadium = boxscore["yahoo"]["stadium"]
-        if not stadium.get("name") or stadium["name"] == "" and espnBox:
-            stadium["name"] = boxscore["espn"]["stadium"].get("name")
+        try:
+            if not (stadium.get("name") or stadium["name"] == "") and espnBox:
+                stadium["name"] = espnBox["stadium"].get("name")
+        except Exception as e:
+            print(espnBox)
+            raise 
+
         self.stadiumStore.insert(session, stadium)
 
         # Handle game
         game = boxscore["yahoo"]["game"]
         for label in ("game_id", "home_id", "away_id", "winner_id", "loser_id"):
-            game[label] = mapping[game[label]]
+            game[label] = mapping.get(game[label])
 
         self.gameStore.insert(session, game)
 
@@ -132,15 +137,16 @@ class SQLAlchemyDatabaseAgent(DatabaseAgent):
     def insert_boxscore(self, boxscore: dict, session = None ) -> None:
         """Insert boxscore data into the database, including common and league-specific data."""
 
-        if not boxscore.get("yahoo"):
+        if not boxscore or not boxscore.get("yahoo"):
             return None
-        if not boxscore or boxscore["home_id"] == -1 or boxscore["away_id"] == -1 or boxscore["yahoo"]["game"]["game_result"] == "unknown":
+        if boxscore['yahoo']['game']['game_result'] in ("Ppd",):
+            return None
+        if boxscore["home_id"] == -1 or boxscore["away_id"] == -1:
             return None 
 
         mapping = self._create_mapping(boxscore, session)
         self._insert_common_data(boxscore, mapping, session)
         self._insert_league_specific_data(boxscore, mapping, session)
-               
     
 
         

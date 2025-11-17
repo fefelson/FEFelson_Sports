@@ -15,7 +15,6 @@ class FootballTeamStat(Base):
     opp_id = Column(Integer, ForeignKey('teams.team_id', ondelete='CASCADE'), nullable=False)
     pts = Column(Integer, nullable=False)
     drives = Column(Integer, nullable=True)
-    plays = Column(Integer, nullable=False)
     yards = Column(Integer, nullable=False)
     pass_plays = Column(Integer, nullable=False)
     pass_yards = Column(Integer, nullable=False)
@@ -23,8 +22,8 @@ class FootballTeamStat(Base):
     rush_yards = Column(Integer, nullable=False)
     int_thrown = Column(Integer, nullable=False)
     fum_lost = Column(Integer, nullable=False)
-    times_sacked = Column(Integer, nullable=False)
-    sack_yds_lost = Column(Integer, nullable=False)
+    times_sacked = Column(Integer, nullable=True)
+    sack_yds_lost = Column(Integer, nullable=True)
     penalties = Column(Integer, nullable=False)
     penalty_yards = Column(Integer, nullable=False)
     time_of_poss = Column(Float, nullable=False)
@@ -160,6 +159,8 @@ class FootballReceiving(Base):
     rec = Column(Integer, nullable=False)
     rec_yds = Column(Integer, nullable=False)
     rec_td = Column(Integer, nullable=False)
+    yac = Column(Integer, nullable=True)
+    rec_1d = Column(Integer, nullable=True)
 
 
 ##########################################################################
@@ -173,6 +174,21 @@ class FootballFumbles(Base):
     team_id = Column(Integer, ForeignKey('teams.team_id', ondelete='CASCADE'), nullable=False)
     opp_id = Column(Integer, ForeignKey('teams.team_id', ondelete='CASCADE'), nullable=False)
     fum_lost = Column(Integer, nullable=False)
+
+
+##########################################################################
+##########################################################################
+
+
+class FootballKicking(Base):
+    __tablename__ = 'kicks'
+    player_id = Column(Integer, ForeignKey('players.player_id', ondelete='CASCADE'), primary_key=True)
+    game_id = Column(String, ForeignKey('games.game_id', ondelete='CASCADE'), primary_key=True)
+    team_id = Column(Integer, ForeignKey('teams.team_id', ondelete='CASCADE'), nullable=False)
+    opp_id = Column(Integer, ForeignKey('teams.team_id', ondelete='CASCADE'), nullable=False)
+    fga = Column(Integer, nullable=False)
+    fgm = Column(Integer, nullable=False)
+    
 
 
 ##########################################################################
@@ -228,4 +244,4 @@ class FootballDefense(Base):
     
 
 ##########################################################################
-##########################################################################
+########################################################################## 

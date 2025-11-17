@@ -134,20 +134,29 @@ class GamingTitle(QWidget):
                     oppML = int(self.game['odds'][-1][f"{opp}_ml"])
 
                 probs = calculate_moneyline_probs(mL, oppML)
-                kelly = calculate_kelly_criterion(self.espnPct[a_h].value()/100, mL)
+                kelly = calculate_kelly_criterion(self.espnPct[a_h].value()/100, mL, edge=.05)
 
                 self.impPct[a_h].set_panel(probs[0]['implied_prob']*100)
                 self.wager[a_h].set_panel(kelly)
                 self.vig.set_panel(probs[2]*100)
 
+    def clear(self):
+        for a_h in ("away", "home"):
+            self.odds[a_h].clear()
+            self.impPct[a_h].clear()
+            self.espnPct[a_h].clear()
+            self.vig.clear()
+            self.wager[a_h].clear()
+
 
     def set_game(self, game):
+        self.clear()
         self.game = game 
 
         if game["odds"]:
             self._set_odds()
 
-        if game['predictor']:
+        if game.get('predictor'):
             for a_h in ("away", "home"):
                 self.espnPct[a_h].setValue(float(game['predictor'][a_h == 'home'][1]))
                 

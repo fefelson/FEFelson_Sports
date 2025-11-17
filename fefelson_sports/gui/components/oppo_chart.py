@@ -82,24 +82,32 @@ class OppositeChart(QtWidgets.QWidget):
         return score
 
 
+    def clear(self):
+        for off_def in ("off", "def"):
+            self.axis[off_def].clear()
+            self.axis[off_def].set_axis_off()
+            self.canvas[off_def].draw()
+
+
     def set_panel_value(self, key, value, analytics):
         
         for off_def in ("off", "def"):
             self.axis[off_def].clear()
             self.axis[off_def].set_axis_off()
             label = f"{off_def}_{key}"
-            barColor = self._set_color(value[label], analytics[label])
-            score = self._set_score(value[label], analytics[label])
+            if value[label] != None:
+                barColor = self._set_color(value[label], analytics[label])
+                score = self._set_score(value[label], analytics[label])
 
-            if off_def == "off":
-                axis = [0, 1, -1, 1]
-            else:
-                axis = [-1, 0, -1, 1]
-                score = score * -1
+                if off_def == "off":
+                    axis = [0, 1, -1, 1]
+                else:
+                    axis = [-1, 0, -1, 1]
+                    score = score * -1
 
-            self.axis[off_def].axis(axis)
-            self.axis[off_def].barh(0, score, 2, color=barColor)
-            self.canvas[off_def].draw()
+                self.axis[off_def].axis(axis)
+                self.axis[off_def].barh(0, score, 2, color=barColor)
+                self.canvas[off_def].draw()
 
 
 if __name__ == "__main__":

@@ -9,11 +9,9 @@ def printDB(tableName):
 
     with get_db_session() as session:
         query = f"""
-                    SELECT time_of_poss
+                    SELECT *
                     
-                    FROM {tableName} as fts
-                    INNER JOIN games as g On fts.game_id = g.game_id
-                     WHERE league_id = 'NFL' 
+                    FROM {tableName} 
                 """
         return  pd.read_sql(query, session.bind)
 
@@ -31,6 +29,6 @@ def printDB(tableName):
 
 if __name__ == "__main__":
     
-    for tableName in ("football_team_stats", ):
-        pprint(printDB(tableName).head(25))
+    for tableName in ("rushing",):
+        pprint(printDB(tableName))
     

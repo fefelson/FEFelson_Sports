@@ -5,7 +5,7 @@ from .database_agent import SQLAlchemyDatabaseAgent
 from ..stores.baseball import TeamStatStore, PlayerStatStore, PlayerPlayStore
 
 # for debugging
-# from pprint import pprint
+from pprint import pprint
 
 class MLBAlchemy(SQLAlchemyDatabaseAgent):
 
@@ -24,8 +24,15 @@ class MLBAlchemy(SQLAlchemyDatabaseAgent):
             yahooTS = boxscore["yahoo"]["teamStats"][a_h]
             espnTS = boxscore["espn"]["teamStats"][a_h]
 
+            full_ip, partial_ip = espnTS["pitching"]["ip"].split(".")
+
             for label in ("game_id", "team_id", "opp_id"):
                 yahooTS[label] = mapping[yahooTS[label]]
+            for label in ("ab", "bb", "rbi"):
+                yahooTS[label] = espnTS["batting"][label]
+            yahooTS["full_ip"] = full_ip
+            yahooTS["partial_ip"] = partial_ip
+            yahooTS["hra"] = espnTS["pitching"]["hr"]
             for label in ("errors", ):
                 yahooTS[label] = espnTS[label]
 
@@ -42,7 +49,6 @@ class MLBAlchemy(SQLAlchemyDatabaseAgent):
                 subFunc(session, yahooL)
 
         # Set Player Stats
-
         for subset, subFunc in (("batting_stats", self.playerStatStore.insert_batting),
                                 ("pitching_stats", self.playerStatStore.insert_pitching)):
             for yahooPS in boxscore["yahoo"]["playerStats"][subset]:

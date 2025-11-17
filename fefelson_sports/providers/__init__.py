@@ -5,10 +5,11 @@ from .espn.normalizers.espn_mlb_normalizer import ESPNMLBNormalizer
 from .espn.normalizers.espn_basketball_normalizer import ESPNBasketballNormalizer
 from .espn.normalizers.espn_football_normalizer import ESPNFootballNormalizer
 
-from .yahoo.yahoo_downloader import YahooDownloadAgent, YahooNCAABDownloadAgent, YahooNCAAFDownloadAgent, YahooNFLDownloadAgent
+from .yahoo.yahoo_downloader import YahooDownloadAgent, YahooNCAABDownloadAgent, YahooNCAAFDownloadAgent, YahooNFLDownloadAgent, YahooNBADownloadAgent
 from .yahoo.normalizers.yahoo_basketball_normalizer import YahooBasketballNormalizer
 from .yahoo.normalizers.yahoo_mlb_normalizer import YahooMLBNormalizer
 from .yahoo.normalizers.yahoo_football_normalizer import YahooFootballNormalizer
+from .yahoo.normalizers.yahoo_ncaaf_normalizer import YahooNCAAFNormalizer
 
 
 
@@ -23,7 +24,7 @@ def get_normal_agent(leagueId: str, provider: Optional[str]=None) -> "NormalAgen
                       "NCAAB": YahooBasketballNormalizer,
                       "MLB": YahooMLBNormalizer,
                       "NFL": YahooFootballNormalizer,
-                      "NCAAF": YahooFootballNormalizer},
+                      "NCAAF": YahooNCAAFNormalizer},
             
             "espn": {"NBA": ESPNBasketballNormalizer,
                       "NCAAB": ESPNBasketballNormalizer,
@@ -38,7 +39,7 @@ def get_download_agent(leagueId: str, provider: Optional[str]=None) -> "Download
     if not provider:
         provider = default_provider
     
-    return {"yahoo": {"NBA": YahooDownloadAgent,
+    return {"yahoo": {"NBA": YahooNBADownloadAgent,
                       "NCAAB": YahooNCAABDownloadAgent,
                       "NFL": YahooNFLDownloadAgent,
                       "NCAAF": YahooNCAAFDownloadAgent,

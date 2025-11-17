@@ -1,4 +1,4 @@
-from .football_analytics import FootballAnalytics, get_db_session
+from .football_analytics import FootballAnalytics
 
 class NFLAnalytics(FootballAnalytics):
 
