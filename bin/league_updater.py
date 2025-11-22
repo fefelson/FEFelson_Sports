@@ -15,7 +15,7 @@ if __name__ == "__main__":
 
     timeNow = datetime.now().astimezone(est)
 
-    if timeNow.hour >= 4 and timeNow.hour < 22:
+    if timeNow.hour >= 2 and timeNow.hour < 22:
     
         for league in (MLB, NFL, NBA, NCAAB, NCAAF, ):
             league().update()

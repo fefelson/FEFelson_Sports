@@ -29,7 +29,6 @@ class Fileable(ABC):
     
 
     def file_exists(self) -> bool:
-        print(self.filePath)
         return os.path.exists(self.filePath)
     
 
@@ -43,6 +42,7 @@ class Fileable(ABC):
 
 
     def read_file(self) -> Any:
+        print(f"file - {self.fileAgent}")
         return self.fileAgent.read(self.filePath)
 
 

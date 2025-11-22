@@ -37,7 +37,7 @@ def update_league():
         # nfl.curr_season = 2025
         # nfl.start_date = date(2025,8,19)
         # nfl.end_date = date(2026,2,10)
-        nfl.last_update = None
+        # nfl.last_update = None
 
         mlb = session.query(League).filter_by(league_id="MLB").first()
         # mlb.curr_season = 2025
@@ -61,7 +61,7 @@ def update_league():
         # ncaab.curr_season = 2025
         # ncaab.start_date = date(2025,11,1)
         # ncaab.end_date = date(2026,4,10)
-        ncaab.last_update = None
+        # ncaab.last_update = None
 
 
 

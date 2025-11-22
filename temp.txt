@@ -1,16 +1,84 @@
-        NCAAB_Nov_17_2025_20_Southern_Illinois_Salukis_at_North_Dakota_State_Bison        
+              NCAAF_Nov_22_2025_15_Liberty_Flames_at_Louisiana_Tech_Bulldogs              
+
+                                           -1.5                                           
+
+                  away                                              home                  
+                  -105                     4.7                      -115                  
+
+        51.2           48.9                               53.5           51.1   
+                  29.9                                              70.1                  
+
+
+                  0.00                                             357.15                 
+                  0.00                                             667.72                 
+
+
+
+
+           NCAAB_Nov_22_2025_17_Western_Carolina_Catamounts_at_Lipscomb_Bisons            
+
+                                           -3.5                                           
+
+                  away                                              home                  
+                  125                      4.4                      -150                  
+
+        44.4           42.6                               60.0           57.4   
+                  27.5                                              72.5                  
+
+
+                  0.00                                             312.50                 
+                  0.00                                             520.83                 
+
+
+
+
+           NCAAB_Nov_22_2025_19_Ball_State_Cardinals_at_Indiana_State_Sycamores           
+
+                                           -8.5                                           
+
+                  away                                              home                  
+                  300                      3.9                      -375                  
+
+        25.0           24.1                               78.9           75.9   
+                  47.1                                              52.9                  
+
+
+                 294.67                                             0.00                  
+                1178.67                                             0.00                  
+
+
+
+
+             NCAAB_Nov_22_2025_20_Northern_Colorado_Bears_at_Portland_Pilots              
+
+                                           +3.5                                           
+
+                  away                                              home                  
+                  -175                     4.5                      145                   
+
+        63.6           60.9                               40.8           39.1   
+                   82                                                18                   
+
+
+                 505.00                                             0.00                  
+                 793.57                                             0.00                  
+
+
+
+
+                 NCAAB_Nov_22_2025_22_UNI_Panthers_at_UC_Irvine_Anteaters                 
 
                                            +1.5                                           
 
                   away                                              home                  
-                  -125                     4.3                      105                   
+                  -120                     4.5                      100                   
 
-        55.6           53.2                               48.8           46.8   
-                  41.1                                              58.9                  
+        54.5           52.2                               50.0           47.8   
+                   40                                               60.1                  
 
 
-                  0.00                                             197.57                 
-                  0.00                                             405.02                 
+                  0.00                                             202.00                 
+                  0.00                                             404.00                 
 
 
 
@@ -20,31 +88,48 @@
                                             +7                                            
 
                   away                                              home                  
-                  -350                     4.1                      280                   
+                  -325                     4.2                      260                   
 
-        77.8           74.7                               26.3           25.3   
-                  55.7                                              43.9                  
+        76.5           73.4                               27.8           26.6   
+                  53.1                                              46.5                  
 
 
-                  0.00                                             238.64                 
-                  0.00                                             906.84                 
+                  0.00                                             259.23                 
+                  0.00                                             933.23                 
 
 
 
 
                    NFL_Nov_23_2025_13_New_York_Giants_at_Detroit_Lions                    
 
-                                          -11.5                                           
+                                          -12.5                                           
 
                   away                                              home                  
-                  500                      4.2                      -700                  
+                  525                      4.2                      -750                  
 
-        16.7           16.0                               87.5           84.0   
-                  28.1                                              71.7                  
+        16.0           15.3                               88.2           84.7   
+                  27.4                                              72.4                  
 
 
-                 137.20                                             0.00                  
-                 823.20                                             0.00                  
+                 135.71                                             0.00                  
+                 848.21                                             0.00                  
+
+
+
+
+             NCAAF_Nov_29_2025_12_Ohio_State_Buckeyes_at_Michigan_Wolverines              
+
+                                           +5.5                                           
+
+                  away                                              home                  
+                  -200                     4.4                      165                   
+
+        66.7           63.9                               37.7           36.1   
+                  80.7                                              19.3                  
+
+
+                 421.00                                             0.00                  
+                 631.50                                             0.00                  
 
 
 
